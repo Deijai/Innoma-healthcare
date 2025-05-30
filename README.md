@@ -1,36 +1,61 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# README.md
+# Dashboard Template
 
-## Getting Started
+Template de dashboard minimalista construído com Next.js 14, TypeScript e Tailwind CSS.
 
-First, run the development server:
+## 🚀 Funcionalidades
+
+- ✅ Tema dark/light com persistência
+- ✅ Menu lateral expansível com subitens
+- ✅ Header com perfil e configurações
+- ✅ Página de login responsiva
+- ✅ Cards com design minimalista
+- ✅ Dashboard com métricas
+- ✅ Múltiplas páginas pré-configuradas
+- ✅ TypeScript para type safety
+- ✅ Design responsivo
+
+## 📦 Tecnologias
+
+- Next.js 14 (App Router)
+- React 18
+- TypeScript
+- Tailwind CSS
+- Lucide Icons
+
+## 🛠️ Instalação
 
 ```bash
+# Clone o repositório
+git clone <url-do-repositorio>
+
+# Entre no diretório
+cd dashboard-template
+
+# Instale as dependências
+npm install
+
+# Execute o projeto
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## 📁 Estrutura do Projeto
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```
+src/
+├── app/                    # Páginas (App Router)
+│   ├── dashboard/         # Área protegida
+│   └── login/            # Autenticação
+├── components/           # Componentes reutilizáveis
+│   ├── ui/              # Componentes base
+│   ├── layout/          # Layout principal
+│   └── dashboard/       # Componentes específicos
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## 🎨 Customização
 
-## Learn More
+O template usa um sistema de design baseado em CSS Variables que pode ser customizado no arquivo `globals.css`.
 
-To learn more about Next.js, take a look at the following resources:
+## 📄 Licença
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+MIT License
