@@ -1,7 +1,7 @@
 // src/app/dashboard/users/[id]/page.tsx
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, use } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { useAuth } from '@/contexts/AuthContext';
@@ -68,11 +68,12 @@ interface UsuarioDetalhado {
 }
 
 interface UserDetailProps {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }
 
 export default function UserDetailPage({ params }: UserDetailProps) {
   const { user: currentUser } = useAuth();
+  const resolvedParams = use(params);
   const [usuario, setUsuario] = useState<UsuarioDetalhado | null>(null);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
@@ -85,7 +86,9 @@ export default function UserDetailPage({ params }: UserDetailProps) {
       setLoading(true);
       setError(null);
 
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/usuarios/${params.id}`, {
+      console.log('params: ', resolvedParams.id);
+      
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/usuarios/${resolvedParams.id}`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
           'X-Subdomain': localStorage.getItem('selected_tenant') || '',
@@ -113,7 +116,7 @@ export default function UserDetailPage({ params }: UserDetailProps) {
 
   useEffect(() => {
     loadUserData();
-  }, [params.id]);
+  }, [resolvedParams.id]);
 
   // Ações do usuário
   const toggleUserStatus = async () => {
@@ -122,7 +125,7 @@ export default function UserDetailPage({ params }: UserDetailProps) {
     try {
       setActionLoading('toggle-status');
       
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/usuarios/${params.id}`, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/usuarios/${resolvedParams.id}`, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
@@ -149,7 +152,7 @@ export default function UserDetailPage({ params }: UserDetailProps) {
     try {
       setActionLoading('block');
       
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/usuarios/${params.id}/bloquear`, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/usuarios/${resolvedParams.id}/bloquear`, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
@@ -176,7 +179,7 @@ export default function UserDetailPage({ params }: UserDetailProps) {
     try {
       setActionLoading('unblock');
       
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/usuarios/${params.id}/desbloquear`, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/usuarios/${resolvedParams.id}/desbloquear`, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
@@ -405,7 +408,7 @@ export default function UserDetailPage({ params }: UserDetailProps) {
             Atualizar
           </Button>
           
-          <Link href={`/dashboard/users/${params.id}/edit`}>
+          <Link href={`/dashboard/users/${resolvedParams.id}/edit`}>
             <Button>
               <Edit className="h-4 w-4 mr-2" />
               Editar
@@ -523,8 +526,8 @@ export default function UserDetailPage({ params }: UserDetailProps) {
                     Este usuário possui {usuario.permissoes.length} permissões no sistema:
                   </p>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                    {usuario.permissoes.map((permission) => (
-                      <div key={permission} className="flex items-center space-x-2 p-2 bg-accent rounded-md">
+                    {usuario.permissoes.map((permission, index) => (
+                      <div key={permission + index} className="flex items-center space-x-2 p-2 bg-accent rounded-md">
                         <CheckCircle className="h-4 w-4 text-green-600" />
                         <span className="text-sm">
                           {permission.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, l => l.toUpperCase())}
@@ -664,7 +667,7 @@ export default function UserDetailPage({ params }: UserDetailProps) {
               <CardTitle>Ações Rápidas</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              <Link href={`/dashboard/users/${params.id}/edit`} className="block">
+              <Link href={`/dashboard/users/${resolvedParams.id}/edit`} className="block">
                 <Button variant="outline" className="w-full justify-start">
                   <Edit className="h-4 w-4 mr-2" />
                   Editar Informações
@@ -751,10 +754,10 @@ export default function UserDetailPage({ params }: UserDetailProps) {
                 <span className="font-mono text-xs">{usuario.id}</span>
               </div>
               
-              {usuario.pessoa_id && (
+              {usuario.id && (
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">ID da pessoa:</span>
-                  <span className="font-mono text-xs">{usuario.pessoa_id}</span>
+                  <span className="font-mono text-xs">{usuario.id}</span>
                 </div>
               )}
               
