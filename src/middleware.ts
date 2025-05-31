@@ -3,39 +3,56 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
 export function middleware(request: NextRequest) {
-  // URLs que não precisam de autenticação
-  const publicPaths = ['/login', '/api/health'];
+  const { pathname } = request.nextUrl;
   
-  // Verificar se é uma rota pública
-  const isPublicPath = publicPaths.some(path => 
-    request.nextUrl.pathname.startsWith(path)
-  );
+  console.log('🔍 Middleware executado:', {
+    pathname,
+    url: request.url,
+    headers: Object.fromEntries(request.headers.entries()),
+    cookies: Object.fromEntries(request.cookies.getAll().map(c => [c.name, c.value]))
+  });
 
-  // Se for rota pública, permitir acesso
-  if (isPublicPath) {
-    return NextResponse.next();
-  }
-
-  // Para rota raiz, redirecionar para dashboard se autenticado, senão para login
-  if (request.nextUrl.pathname === '/') {
-    const token = request.cookies.get('auth_token')?.value;
+  // Se está tentando acessar dashboard
+  if (pathname.startsWith('/dashboard')) {
+    console.log('📊 Middleware: Acesso ao dashboard detectado');
     
-    if (token) {
-      return NextResponse.redirect(new URL('/dashboard', request.url));
-    } else {
-      return NextResponse.redirect(new URL('/login', request.url));
+    // Verificar se há token nos cookies ou headers
+    const authToken = request.cookies.get('auth_token')?.value || 
+                      request.headers.get('authorization');
+    
+    const selectedTenant = request.cookies.get('selected_tenant')?.value ||
+                          request.headers.get('x-subdomain');
+    
+    console.log('🔑 Middleware: Verificação de auth:', {
+      hasToken: !!authToken,
+      hasTenant: !!selectedTenant,
+      token: authToken ? authToken.substring(0, 20) + '...' : null,
+      tenant: selectedTenant
+    });
+
+    // Em desenvolvimento, permitir acesso sempre
+    if (process.env.NODE_ENV === 'development') {
+      console.log('🚧 Middleware: Modo desenvolvimento - permitindo acesso');
+      return NextResponse.next();
+    }
+
+    // Se não tem token, redirecionar para login
+    if (!authToken) {
+      console.log('❌ Middleware: Sem token - redirecionando para login');
+      const loginUrl = new URL('/login', request.url);
+      return NextResponse.redirect(loginUrl);
+    }
+
+    // Se não tem tenant, redirecionar para seleção
+    if (!selectedTenant) {
+      console.log('❌ Middleware: Sem tenant - redirecionando para login');
+      const loginUrl = new URL('/login', request.url);
+      return NextResponse.redirect(loginUrl);
     }
   }
 
-  // Para rotas protegidas do dashboard
-  if (request.nextUrl.pathname.startsWith('/dashboard')) {
-    const token = request.cookies.get('auth_token')?.value;
-    
-    if (!token) {
-      return NextResponse.redirect(new URL('/login', request.url));
-    }
-  }
-
+  // Para todas as outras rotas, permitir acesso
+  console.log('✅ Middleware: Permitindo acesso à rota:', pathname);
   return NextResponse.next();
 }
 
@@ -43,11 +60,12 @@ export const config = {
   matcher: [
     /*
      * Match all request paths except for the ones starting with:
+     * - api (API routes)
      * - _next/static (static files)
      * - _next/image (image optimization files)
      * - favicon.ico (favicon file)
-     * - public files (public folder)
+     * - public (public files)
      */
-    '/((?!_next/static|_next/image|favicon.ico|public/).*)',
+    '/((?!api|_next/static|_next/image|favicon.ico|public).*)',
   ],
 };

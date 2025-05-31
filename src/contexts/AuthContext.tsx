@@ -3,7 +3,6 @@
 
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { apiService, LoginRequest, LoginResponse } from '@/lib/api';
-import { TokenValidator } from '@/lib/token-validator';
 import { useRouter } from 'next/navigation';
 
 interface AuthContextType {
@@ -29,79 +28,76 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const [selectedTenant, setSelectedTenant] = useState<string | null>(null);
   const router = useRouter();
 
-  // Função para lidar com token inválido
-  const handleInvalidToken = () => {
-    console.log('🚪 Token inválido, fazendo logout...');
-    apiService.logout();
-    setUser(null);
-    setIsLoading(false);
-    router.push('/login');
-  };
-
-  // Configurar interceptor de token uma única vez
+  // Inicialização única
   useEffect(() => {
-    const tokenValidator = TokenValidator.getInstance();
+    let mounted = true;
     
-    // Configurar interceptor de resposta HTTP
-    tokenValidator.setupResponseInterceptor();
-    
-    // Adicionar callback para token inválido
-    tokenValidator.addInvalidTokenCallback(handleInvalidToken);
-    
-    // Cleanup
-    return () => {
-      tokenValidator.removeInvalidTokenCallback(handleInvalidToken);
-    };
-  }, []);
-
-  // Verificar autenticação ao inicializar
-  useEffect(() => {
-    const initAuth = async () => {
+    const initializeAuth = async () => {
       try {
-        console.log('🔄 Inicializando autenticação...');
+        console.log('🔄 === INICIALIZANDO AUTH ===');
         
-        // Verificar se há tenant selecionado
+        // 1. Recuperar tenant
         const currentTenant = apiService.getCurrentTenant();
         console.log('🏢 Tenant atual:', currentTenant);
-        setSelectedTenant(currentTenant);
+        
+        if (mounted) {
+          setSelectedTenant(currentTenant);
+        }
 
+        // 2. Verificar se está autenticado
         if (currentTenant && apiService.isAuthenticated()) {
-          console.log('✅ Tenant e token presentes, verificando usuário...');
+          console.log('✅ Usuário parece estar autenticado');
           
+          // 3. Tentar obter dados do usuário
           const storedUser = apiService.getStoredUser();
-          if (storedUser) {
-            console.log('👤 Usuário encontrado no storage:', storedUser.nome);
+          if (storedUser && mounted) {
+            console.log('👤 Usuário encontrado:', storedUser.nome);
             setUser(storedUser);
           } else {
-            console.log('🔍 Buscando dados do usuário na API...');
+            console.log('🔍 Buscando dados na API...');
             try {
               const userData = await apiService.getUserProfile();
-              console.log('✅ Dados do usuário obtidos da API:', userData.nome);
-              setUser(userData);
+              if (mounted) {
+                console.log('✅ Dados obtidos da API:', userData.nome);
+                setUser(userData);
+              }
             } catch (error) {
-              console.error('❌ Erro ao obter perfil do usuário:', error);
-              // Token inválido ou expirado
-              handleInvalidToken();
-              return;
+              console.error('❌ Erro ao buscar usuário:', error);
+              // Limpar dados inválidos
+              apiService.logout();
+              if (mounted) {
+                setUser(null);
+              }
             }
           }
         } else {
-          console.log('ℹ️ Não autenticado ou sem tenant');
+          console.log('ℹ️ Usuário não autenticado');
+          if (mounted) {
+            setUser(null);
+          }
         }
       } catch (error) {
-        console.error('❌ Erro ao verificar autenticação:', error);
-        handleInvalidToken();
-        return;
+        console.error('❌ Erro na inicialização:', error);
+        if (mounted) {
+          setUser(null);
+        }
       } finally {
-        setIsLoading(false);
+        if (mounted) {
+          setIsLoading(false);
+          console.log('🏁 Inicialização concluída');
+        }
       }
     };
 
-    initAuth();
-  }, []);
+    initializeAuth();
+
+    return () => {
+      mounted = false;
+    };
+  }, []); // Apenas uma vez
 
   const setTenant = (tenant: string) => {
-    console.log('🏢 Context: Definindo tenant:', tenant);
+    console.log('🏢 Definindo tenant:', tenant);
     apiService.setTenant(tenant);
     setSelectedTenant(tenant);
   };
@@ -109,48 +105,33 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const login = async (credentials: LoginRequest) => {
     try {
       setIsLoading(true);
-      //setError(''); // Limpar erros anteriores
+      console.log('🔐 Fazendo login...');
       
-      console.log('🔐 Iniciando login...');
-      
-      // Verificar se tenant está definido
       if (!apiService.hasTenant()) {
-        throw new Error('Tenant não definido. Selecione um município primeiro.');
+        throw new Error('Tenant não definido');
       }
       
-      console.log('🏢 Tenant confirmado:', apiService.getCurrentTenant());
-      console.log('👤 Fazendo login para usuário:', credentials.usuario);
-      
       const response = await apiService.login(credentials);
-
-      console.log('response: ', response);
-      
-      
-      console.log('✅ Login bem-sucedido:', {
-        usuario: response.usuario.nome,
-        papel: response.usuario.papel,
-        tenant: response.usuario.tenant_id
-      });
+      console.log('✅ Login realizado:', response.usuario.nome);
       
       setUser(response.usuario);
       
-      // Redirecionar para dashboard
-      console.log('🚀 Redirecionando para dashboard...');
-      router.push('/dashboard');
+      // Não fazer redirecionamento aqui - deixar o componente decidir
+      console.log('✅ Usuário definido no contexto');
       
     } catch (error) {
       console.error('❌ Erro no login:', error);
       setIsLoading(false);
-      throw error; // Re-throw para que o componente de login possa exibir o erro
+      throw error;
     }
-    // Note: não fazemos setIsLoading(false) aqui no sucesso para evitar flash
-    // O loading só será desativado quando o componente de dashboard carregar
+    // Loading permanece true até redirecionamento
   };
 
   const logout = () => {
     console.log('🚪 Fazendo logout...');
     apiService.logout();
     setUser(null);
+    setSelectedTenant(apiService.getCurrentTenant());
     setIsLoading(false);
     router.push('/login');
   };
@@ -158,42 +139,34 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const refreshUser = async () => {
     try {
       if (apiService.isAuthenticated() && apiService.hasTenant()) {
-        console.log('🔄 Atualizando dados do usuário...');
         const userData = await apiService.getUserProfile();
         setUser(userData);
-        console.log('✅ Dados do usuário atualizados');
+        console.log('✅ Usuário atualizado');
       }
     } catch (error) {
-      console.error('❌ Erro ao atualizar dados do usuário:', error);
-      // Token pode ter expirado
-      handleInvalidToken();
+      console.error('❌ Erro ao atualizar usuário:', error);
+      logout();
     }
   };
 
-  // Validação automática de token a cada 5 minutos
+  // Estado de autenticação
+  const isAuthenticated = !!(user && selectedTenant && apiService.isAuthenticated());
+
+  // Log de estado
   useEffect(() => {
-    if (!user || !apiService.isAuthenticated()) return;
-
-    const validateToken = async () => {
-      try {
-        await apiService.getUserProfile();
-        console.log('✅ Token ainda válido');
-      } catch (error) {
-        console.log('❌ Token expirado ou inválido');
-        handleInvalidToken();
-      }
-    };
-
-    // Validar imediatamente e depois a cada 5 minutos
-    const interval = setInterval(validateToken, 5 * 60 * 1000); // 5 minutos
-
-    return () => clearInterval(interval);
-  }, [user]);
+    console.log('📊 Auth State:', {
+      user: user?.nome || null,
+      isLoading,
+      isAuthenticated,
+      selectedTenant,
+      apiDebug: apiService.getDebugInfo()
+    });
+  }, [user, isLoading, isAuthenticated, selectedTenant]);
 
   const value: AuthContextType = {
     user,
     isLoading,
-    isAuthenticated: !!user && apiService.isAuthenticated(),
+    isAuthenticated,
     selectedTenant,
     login,
     logout,

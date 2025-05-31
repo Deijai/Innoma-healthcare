@@ -1,17 +1,14 @@
 // src/app/login/page.tsx
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/Button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import { TenantSelector } from '@/components/auth/TenantSelector';
 import { LoginDemoInfo } from '@/components/auth/LoginDemoInfo';
 import { useAuth } from '@/contexts/AuthContext';
-import { Eye, EyeOff, Loader2, AlertCircle, Building2, ArrowLeft } from 'lucide-react';
-
-// Configurar estratégia como seleção de tenant
-const TENANT_STRATEGY = 'login-field';
+import { Eye, EyeOff, Loader2, AlertCircle, Building2, ArrowLeft, Bug } from 'lucide-react';
 
 interface TenantInfo {
   id: string;
@@ -30,36 +27,77 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+  const [redirectionAttempted, setRedirectionAttempted] = useState(false);
+  const [redirectAttempts, setRedirectAttempts] = useState(0);
+  const [showDebug, setShowDebug] = useState(process.env.NODE_ENV === 'development');
   
   const { login, isAuthenticated, setTenant, isLoading: authLoading } = useAuth();
   const router = useRouter();
 
-  // Verificar estratégia de tenant e inicializar
-  useEffect(() => {
-    // Para estratégia de seleção sempre mostrar o seletor primeiro
-    setStep('tenant');
-  }, []);
+  // Função para forçar redirecionamento de múltiplas formas
+  const forceRedirect = useCallback(() => {
+    console.log('🚀 Forçando redirecionamento - tentativa:', redirectAttempts + 1);
+    
+    setRedirectAttempts(prev => prev + 1);
+    
+    if (redirectAttempts === 0) {
+      // Tentativa 1: router.push()
+      console.log('📍 Tentativa 1: router.push()');
+      router.push('/dashboard');
+    } else if (redirectAttempts === 1) {
+      // Tentativa 2: router.replace()
+      console.log('📍 Tentativa 2: router.replace()');
+      router.replace('/dashboard');
+    } else if (redirectAttempts >= 2) {
+      // Tentativa 3: window.location (força refresh)
+      console.log('📍 Tentativa 3: window.location.href');
+      window.location.href = '/dashboard';
+    }
+  }, [router, redirectAttempts]);
 
-  // Redirecionar se já autenticado
+  // Verificar autenticação e redirecionar
   useEffect(() => {
-    console.log('🔍 LoginPage - Verificando autenticação:', {
+    if (authLoading) return;
+
+    console.log('🔍 LoginPage - Verificando estado:', {
       isAuthenticated,
       authLoading,
-      selectedTenant
+      redirectionAttempted,
+      redirectAttempts
     });
 
-    if (!authLoading && isAuthenticated) {
-      console.log('✅ Já autenticado, redirecionando para dashboard...');
-      router.push('/dashboard');
+    if (isAuthenticated && !redirectionAttempted) {
+      console.log('✅ Usuário autenticado - iniciando redirecionamento');
+      setRedirectionAttempted(true);
+      
+      // Primeiro redirecionamento imediato
+      forceRedirect();
     }
-  }, [isAuthenticated, authLoading, router]);
+  }, [isAuthenticated, authLoading, redirectionAttempted, forceRedirect]);
+
+  // Auto-retry redirecionamento se não funcionou
+  useEffect(() => {
+    if (isAuthenticated && redirectionAttempted && redirectAttempts < 3) {
+      const timer = setTimeout(() => {
+        console.log('⏰ Retry redirecionamento após 2s');
+        forceRedirect();
+      }, 2000);
+
+      return () => clearTimeout(timer);
+    }
+  }, [isAuthenticated, redirectionAttempted, redirectAttempts, forceRedirect]);
+
+  // Reset quando não autenticado
+  useEffect(() => {
+    if (!isAuthenticated && redirectionAttempted) {
+      setRedirectionAttempted(false);
+      setRedirectAttempts(0);
+    }
+  }, [isAuthenticated, redirectionAttempted]);
 
   const handleTenantSelect = (tenant: TenantInfo) => {
     console.log('🏢 Tenant selecionado:', tenant);
-    
-    // IMPORTANTE: Definir tenant no contexto antes de prosseguir
     setTenant(tenant.subdomain);
-    
     setSelectedTenant(tenant);
     setError('');
     setStep('login');
@@ -83,12 +121,11 @@ export default function LoginPage() {
     setError('');
 
     try {
-      console.log('🔐 Tentando fazer login...');
+      console.log('🔐 LoginPage: Tentando fazer login...');
       await login({ usuario: usuario.trim(), senha });
-      // O redirecionamento é feito automaticamente no AuthContext
-      console.log('✅ Login realizado, aguardando redirecionamento...');
+      console.log('✅ LoginPage: Login realizado com sucesso');
     } catch (error) {
-      console.error('❌ Erro no login:', error);
+      console.error('❌ LoginPage: Erro no login:', error);
       setError(error instanceof Error ? error.message : 'Erro ao fazer login');
       setIsLoading(false);
     }
@@ -104,6 +141,99 @@ export default function LoginPage() {
     setUsuario(usuario);
     setSenha(senha);
   };
+
+  const handleManualRedirect = () => {
+    console.log('👆 Redirecionamento manual clicado');
+    window.location.href = '/dashboard';
+  };
+
+  // Se está carregando auth inicial
+  if (authLoading && !redirectionAttempted) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background px-4">
+        <div className="text-center space-y-4">
+          <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
+          <p className="text-sm text-muted-foreground">Verificando autenticação...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Se já autenticado - tela de redirecionamento
+  if (isAuthenticated) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background px-4">
+        <div className="text-center space-y-4 max-w-md">
+          <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
+          <p className="text-sm text-muted-foreground">
+            Redirecionando para dashboard...
+          </p>
+          
+          {/* Informações de Debug */}
+          {showDebug && (
+            <div className="space-y-3 text-left">
+              <div className="text-xs bg-gray-100 dark:bg-gray-800 p-3 rounded border">
+                <strong>Debug Info:</strong>
+                <pre className="whitespace-pre-wrap">
+{JSON.stringify({
+  isAuthenticated,
+  authLoading,
+  redirectionAttempted,
+  redirectAttempts,
+  currentUrl: typeof window !== 'undefined' ? window.location.href : 'SSR'
+}, null, 2)}
+                </pre>
+              </div>
+              
+              <div className="space-y-2">
+                <Button 
+                  size="sm" 
+                  variant="outline"
+                  onClick={forceRedirect}
+                  className="w-full"
+                >
+                  🔄 Tentar Redirecionamento ({redirectAttempts + 1}/3)
+                </Button>
+                
+                <Button 
+                  size="sm" 
+                  variant="default"
+                  onClick={handleManualRedirect}
+                  className="w-full"
+                >
+                  🚀 Forçar Redirecionamento Manual
+                </Button>
+                
+                <Button 
+                  size="sm" 
+                  //variant="destructive"
+                  onClick={() => {
+                    localStorage.clear();
+                    window.location.reload();
+                  }}
+                  className="w-full"
+                >
+                  🗑️ Limpar Cache e Recarregar
+                </Button>
+              </div>
+            </div>
+          )}
+          
+          {/* Fallback após múltiplas tentativas */}
+          {redirectAttempts >= 3 && (
+            <div className="mt-4 p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-md">
+              <p className="text-sm text-yellow-700 dark:text-yellow-300 mb-2">
+                Redirecionamento automático falhou. Clique no botão abaixo:
+              </p>
+              <Button onClick={handleManualRedirect} className="w-full">
+                Ir para Dashboard
+              </Button>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   // Renderizar seletor de tenant
   if (step === 'tenant') {
@@ -130,7 +260,6 @@ export default function LoginPage() {
             selectedTenant={selectedTenant}
           />
 
-          {/* Informações de Login Demo */}
           {process.env.NODE_ENV === 'development' && (
             <LoginDemoInfo 
               selectedTenant={selectedTenant?.subdomain}
@@ -146,7 +275,6 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-background px-4">
       <div className="w-full max-w-md space-y-6">
-        {/* Header com info do tenant */}
         {selectedTenant && (
           <div className="text-center space-y-2">
             <Building2 className="h-12 w-12 mx-auto text-primary" />
@@ -157,7 +285,6 @@ export default function LoginPage() {
           </div>
         )}
 
-        {/* Card de Login */}
         <Card className="w-full">
           <CardHeader className="space-y-1">
             <div className="flex items-center space-x-2">
@@ -176,7 +303,6 @@ export default function LoginPage() {
             </p>
           </CardHeader>
           <CardContent className="space-y-4">
-            {/* Info do Tenant Selecionado */}
             <div className="p-3 bg-accent/50 border border-border rounded-md">
               <div className="flex items-center justify-between">
                 <div>
@@ -195,9 +321,7 @@ export default function LoginPage() {
               </div>
             </div>
 
-            {/* Formulário */}
             <form onSubmit={handleLogin} className="space-y-4">
-              {/* Campo Usuario */}
               <div className="space-y-2">
                 <label htmlFor="usuario" className="text-sm font-medium">
                   Usuário
@@ -214,7 +338,6 @@ export default function LoginPage() {
                 />
               </div>
 
-              {/* Campo Senha */}
               <div className="space-y-2">
                 <label htmlFor="senha" className="text-sm font-medium">
                   Senha
@@ -241,7 +364,6 @@ export default function LoginPage() {
                 </div>
               </div>
 
-              {/* Mensagem de Erro */}
               {error && (
                 <div className="flex items-center space-x-2 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md">
                   <AlertCircle className="h-4 w-4 text-red-600 dark:text-red-400" />
@@ -249,7 +371,6 @@ export default function LoginPage() {
                 </div>
               )}
 
-              {/* Botão de Login */}
               <Button type="submit" className="w-full" disabled={isLoading || authLoading}>
                 {isLoading || authLoading ? (
                   <>
@@ -262,13 +383,11 @@ export default function LoginPage() {
               </Button>
             </form>
 
-            {/* Links Adicionais */}
             <div className="text-center space-y-2">
               <p className="text-xs text-muted-foreground">
                 Primeiro acesso? Entre em contato com o administrador do sistema.
               </p>
               
-              {/* Informações de Demo para desenvolvimento */}
               {process.env.NODE_ENV === 'development' && (
                 <LoginDemoInfo 
                   selectedTenant={selectedTenant?.subdomain}

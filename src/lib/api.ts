@@ -122,6 +122,21 @@ class ApiService {
     }
   }
 
+  /**
+   * Obter token armazenado (MÉTODO PÚBLICO)
+   */
+  public getStoredToken(): string | null {
+    if (typeof window === 'undefined') return null;
+    return localStorage.getItem('auth_token');
+  }
+
+  /**
+   * Verificar se há token válido (MÉTODO PÚBLICO)
+   */
+  public hasValidToken(): boolean {
+    return !!this.getStoredToken();
+  }
+
   private getHeaders(includeAuth = false): Record<string, string> {
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
@@ -143,11 +158,6 @@ class ApiService {
     }
 
     return headers;
-  }
-
-  private getStoredToken(): string | null {
-    if (typeof window === 'undefined') return null;
-    return localStorage.getItem('auth_token');
   }
 
   private async handleResponse<T>(response: Response): Promise<T> {
@@ -306,7 +316,7 @@ class ApiService {
   // Verificar se usuário está autenticado
   isAuthenticated(): boolean {
     const token = this.getStoredToken();
-    const authTenant = localStorage.getItem('auth_tenant');
+    const authTenant = typeof window !== 'undefined' ? localStorage.getItem('auth_tenant') : null;
     
     // Verificar se o token existe, se há tenant definido e se correspondem
     return !!token && !!this.currentTenant && authTenant === this.currentTenant;
@@ -372,6 +382,21 @@ class ApiService {
       const url = this.buildTenantUrl(path, tenant);
       window.location.href = url;
     }
+  }
+
+  // Métodos de debug públicos
+  public getDebugInfo(): {
+    currentTenant: string | null;
+    hasToken: boolean;
+    isAuthenticated: boolean;
+    storedUser: any;
+  } {
+    return {
+      currentTenant: this.currentTenant,
+      hasToken: this.hasValidToken(),
+      isAuthenticated: this.isAuthenticated(),
+      storedUser: this.getStoredUser()
+    };
   }
 }
 
