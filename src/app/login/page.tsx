@@ -123,6 +123,7 @@ export default function LoginPage() {
     try {
       console.log('🔐 LoginPage: Tentando fazer login...');
       await login({ usuario: usuario.trim(), senha });
+      window.location.reload();
       console.log('✅ LoginPage: Login realizado com sucesso');
     } catch (error) {
       console.error('❌ LoginPage: Erro no login:', error);

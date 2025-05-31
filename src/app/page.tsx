@@ -26,6 +26,8 @@ export default function HomePage() {
 
     // Pequeno delay para garantir que o estado está estável
     const timer = setTimeout(() => {
+      console.log('setTimeout');
+      
       if (isAuthenticated) {
         console.log('🏠 HomePage: Usuário autenticado, redirecionando para dashboard');
         router.push('/dashboard');

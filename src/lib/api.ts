@@ -398,6 +398,158 @@ class ApiService {
       storedUser: this.getStoredUser()
     };
   }
+
+  // Métodos para gestão de usuários
+  async getUsers(params?: {
+    page?: number;
+    limit?: number;
+    search?: string;
+    papel?: string;
+    ativo?: string;
+    unidade_id?: string;
+  }): Promise<{
+    data: any[];
+    total: number;
+    page: number;
+    totalPages: number;
+  }> {
+    const searchParams = new URLSearchParams();
+    
+    if (params?.page) searchParams.append('page', params.page.toString());
+    if (params?.limit) searchParams.append('limit', params.limit.toString());
+    if (params?.search) searchParams.append('search', params.search);
+    if (params?.papel) searchParams.append('papel', params.papel);
+    if (params?.ativo) searchParams.append('ativo', params.ativo);
+    if (params?.unidade_id) searchParams.append('unidade_id', params.unidade_id);
+
+    const response = await fetch(
+      `${this.baseUrl}/api/usuarios?${searchParams.toString()}`,
+      {
+        headers: this.getHeaders(true),
+      }
+    );
+
+    return await this.handleResponse(response);
+  }
+
+  async getUser(id: string): Promise<any> {
+    const response = await fetch(`${this.baseUrl}/api/usuarios/${id}`, {
+      headers: this.getHeaders(true),
+    });
+
+    return await this.handleResponse(response);
+  }
+
+  async createUser(userData: any): Promise<any> {
+    const response = await fetch(`${this.baseUrl}/api/usuarios`, {
+      method: 'POST',
+      headers: this.getHeaders(true),
+      body: JSON.stringify(userData),
+    });
+
+    return await this.handleResponse(response);
+  }
+
+  async updateUser(id: string, userData: any): Promise<any> {
+    const response = await fetch(`${this.baseUrl}/api/usuarios/${id}`, {
+      method: 'PUT',
+      headers: this.getHeaders(true),
+      body: JSON.stringify(userData),
+    });
+
+    return await this.handleResponse(response);
+  }
+
+  async blockUser(id: string, minutes: number = 30): Promise<any> {
+    const response = await fetch(`${this.baseUrl}/api/usuarios/${id}/bloquear`, {
+      method: 'PUT',
+      headers: this.getHeaders(true),
+      body: JSON.stringify({ tempo_minutos: minutes }),
+    });
+
+    return await this.handleResponse(response);
+  }
+
+  async unblockUser(id: string): Promise<any> {
+    const response = await fetch(`${this.baseUrl}/api/usuarios/${id}/desbloquear`, {
+      method: 'PUT',
+      headers: this.getHeaders(true),
+    });
+
+    return await this.handleResponse(response);
+  }
+
+  async deleteUser(id: string): Promise<any> {
+    const response = await fetch(`${this.baseUrl}/api/usuarios/${id}`, {
+      method: 'DELETE',
+      headers: this.getHeaders(true),
+    });
+
+    return await this.handleResponse(response);
+  }
+
+  // Métodos para pessoas (base dos usuários)
+  async getPeople(params?: {
+    page?: number;
+    limit?: number;
+    search?: string;
+    sexo?: string;
+    status?: string;
+    cidade?: string;
+    estado?: string;
+  }): Promise<{
+    data: any[];
+    total: number;
+    page: number;
+    totalPages: number;
+  }> {
+    const searchParams = new URLSearchParams();
+    
+    if (params?.page) searchParams.append('page', params.page.toString());
+    if (params?.limit) searchParams.append('limit', params.limit.toString());
+    if (params?.search) searchParams.append('search', params.search);
+    if (params?.sexo) searchParams.append('sexo', params.sexo);
+    if (params?.status) searchParams.append('status', params.status);
+    if (params?.cidade) searchParams.append('cidade', params.cidade);
+    if (params?.estado) searchParams.append('estado', params.estado);
+
+    const response = await fetch(
+      `${this.baseUrl}/api/pessoas?${searchParams.toString()}`,
+      {
+        headers: this.getHeaders(true),
+      }
+    );
+
+    return await this.handleResponse(response);
+  }
+
+  async getPerson(id: string): Promise<any> {
+    const response = await fetch(`${this.baseUrl}/api/pessoas/${id}`, {
+      headers: this.getHeaders(true),
+    });
+
+    return await this.handleResponse(response);
+  }
+
+  async createPerson(personData: any): Promise<any> {
+    const response = await fetch(`${this.baseUrl}/api/pessoas`, {
+      method: 'POST',
+      headers: this.getHeaders(true),
+      body: JSON.stringify(personData),
+    });
+
+    return await this.handleResponse(response);
+  }
+
+  async updatePerson(id: string, personData: any): Promise<any> {
+    const response = await fetch(`${this.baseUrl}/api/pessoas/${id}`, {
+      method: 'PUT',
+      headers: this.getHeaders(true),
+      body: JSON.stringify(personData),
+    });
+
+    return await this.handleResponse(response);
+  }
 }
 
 export const apiService = new ApiService();
