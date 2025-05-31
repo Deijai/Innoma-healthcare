@@ -3,12 +3,13 @@ import './globals.css';
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 import { ThemeProvider } from '@/components/providers/ThemeProvider';
+import { AuthProvider } from '@/contexts/AuthContext';
 
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: 'Dashboard Template',
-  description: 'Template de dashboard minimalista',
+  title: 'Sistema de Gestão de Saúde',
+  description: 'Sistema completo para gestão de unidades de saúde',
 };
 
 export default function RootLayout({
@@ -20,7 +21,9 @@ export default function RootLayout({
     <html lang="pt-BR">
       <body suppressHydrationWarning={true} className={inter.className}>
         <ThemeProvider defaultTheme="system" storageKey="dashboard-theme">
-          {children}
+          <AuthProvider>
+            {children}
+          </AuthProvider>
         </ThemeProvider>
       </body>
     </html>
