@@ -1,4 +1,4 @@
-// src/app/dashboard/layout.tsx
+// src/app/dashboard/layout.tsx (ATUALIZADO COM MENU DE PESSOAS)
 'use client';
 
 import { useAuth } from '@/contexts/AuthContext';
@@ -28,7 +28,9 @@ import {
   LogOut,
   Menu,
   X,
-  Loader2
+  Loader2,
+  UserPlus,
+  Stethoscope
 } from 'lucide-react';
 
 interface MenuItem {
@@ -45,8 +47,34 @@ const menuItems: MenuItem[] = [
     title: 'Pessoas',
     icon: Users,
     children: [
-      { title: 'Pacientes', href: '/dashboard/patients', icon: Heart },
-      { title: 'Médicos', href: '/dashboard/doctors', icon: UserCheck },
+      { title: 'Todas as Pessoas', href: '/dashboard/people', icon: Users },
+      { title: 'Nova Pessoa', href: '/dashboard/people/new', icon: UserPlus },
+    ],
+  },
+  {
+    title: 'Usuários',
+    icon: Shield,
+    roles: ['ADMIN', 'GESTOR'],
+    children: [
+      { title: 'Lista de Usuários', href: '/dashboard/users', icon: Shield },
+      { title: 'Novo Usuário', href: '/dashboard/users/new', icon: UserPlus },
+      { title: 'Perfis e Permissões', href: '/dashboard/users/profiles', icon: Shield },
+    ],
+  },
+  {
+    title: 'Pacientes',
+    icon: Heart,
+    children: [
+      { title: 'Lista de Pacientes', href: '/dashboard/patients', icon: Heart },
+      { title: 'Novo Paciente', href: '/dashboard/patients/new', icon: UserPlus },
+    ],
+  },
+  {
+    title: 'Médicos',
+    icon: Stethoscope,
+    children: [
+      { title: 'Lista de Médicos', href: '/dashboard/doctors', icon: Stethoscope },
+      { title: 'Novo Médico', href: '/dashboard/doctors/new', icon: UserPlus },
     ],
   },
   {
@@ -64,15 +92,6 @@ const menuItems: MenuItem[] = [
       { title: 'Unidades', href: '/dashboard/units', icon: Building2 },
       { title: 'Medicamentos', href: '/dashboard/medications', icon: Pill },
       { title: 'Financeiro', href: '/dashboard/financial', icon: BarChart3 },
-    ],
-  },
-  {
-    title: 'Usuários',
-    icon: Users,
-    roles: ['ADMIN'],
-    children: [
-      { title: 'Lista de Usuários', href: '/dashboard/users', icon: Users },
-      { title: 'Perfis e Permissões', href: '/dashboard/users/profiles', icon: Shield },
     ],
   },
   { title: 'Relatórios', href: '/dashboard/reports', icon: BarChart3 },
@@ -104,6 +123,34 @@ export default function DashboardLayout({
   // Fechar sidebar em mobile ao navegar
   useEffect(() => {
     setSidebarOpen(false);
+  }, [pathname]);
+
+  // Auto-expandir menu baseado na rota atual
+  useEffect(() => {
+    const currentPath = pathname;
+    const shouldExpand: string[] = ['Dashboard'];
+    
+    // Expandir seções baseadas na rota atual
+    if (currentPath.includes('/people')) {
+      shouldExpand.push('Pessoas');
+    }
+    if (currentPath.includes('/users')) {
+      shouldExpand.push('Usuários');
+    }
+    if (currentPath.includes('/patients')) {
+      shouldExpand.push('Pacientes');
+    }
+    if (currentPath.includes('/doctors')) {
+      shouldExpand.push('Médicos');
+    }
+    if (currentPath.includes('/appointments') || currentPath.includes('/consultations')) {
+      shouldExpand.push('Atendimento');
+    }
+    if (currentPath.includes('/units') || currentPath.includes('/medications') || currentPath.includes('/financial')) {
+      shouldExpand.push('Gestão');
+    }
+    
+    setExpandedItems(shouldExpand);
   }, [pathname]);
 
   if (isLoading || !mounted) {
@@ -195,6 +242,9 @@ export default function DashboardLayout({
       'MEDICO': 'text-green-600 dark:text-green-400',
       'ENFERMEIRO': 'text-purple-600 dark:text-purple-400',
       'RECEPCIONISTA': 'text-orange-600 dark:text-orange-400',
+      'FARMACEUTICO': 'text-cyan-600 dark:text-cyan-400',
+      'LABORATORISTA': 'text-pink-600 dark:text-pink-400',
+      'GESTOR': 'text-indigo-600 dark:text-indigo-400',
     };
     return colors[role] || 'text-gray-600 dark:text-gray-400';
   };
@@ -335,26 +385,6 @@ export default function DashboardLayout({
                     <div className="py-1">
                       <button 
                         onClick={() => setShowUserMenu(false)}
-                        className="flex items-center w-full px-4 py-2 text-sm hover:bg-accent"
-                      >
-                        <User className="h-4 w-4 mr-3" />
-                        Meu Perfil
-                      </button>
-                      <button 
-                        onClick={() => setShowUserMenu(false)}
-                        className="flex items-center w-full px-4 py-2 text-sm hover:bg-accent"
-                      >
-                        <Settings className="h-4 w-4 mr-3" />
-                        Configurações
-                      </button>
-                      
-                      <hr className="my-1 border-border" />
-                      
-                      <button 
-                        onClick={() => {
-                          setShowUserMenu(false);
-                          logout();
-                        }}
                         className="flex items-center w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
                       >
                         <LogOut className="h-4 w-4 mr-3" />

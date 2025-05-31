@@ -1,372 +1,447 @@
 // src/components/ui/Skeleton.tsx
 'use client';
 
+import React from 'react';
 import { cn } from '@/lib/utils';
+
+// ===================================
+// SKELETON BASE
+// ===================================
 
 interface SkeletonProps {
   className?: string;
+  width?: string | number;
+  height?: string | number;
+  rounded?: boolean;
+  animate?: boolean;
 }
 
-export function Skeleton({ className }: SkeletonProps) {
+export const Skeleton: React.FC<SkeletonProps> = ({
+  className,
+  width,
+  height,
+  rounded = false,
+  animate = true
+}) => {
+  const style: React.CSSProperties = {};
+  
+  if (width) style.width = typeof width === 'number' ? `${width}px` : width;
+  if (height) style.height = typeof height === 'number' ? `${height}px` : height;
+
   return (
     <div
       className={cn(
-        "animate-pulse rounded-md bg-gray-200 dark:bg-gray-800",
+        'bg-muted',
+        rounded ? 'rounded-full' : 'rounded-md',
+        animate && 'animate-pulse',
         className
       )}
+      style={style}
     />
   );
+};
+
+// ===================================
+// SKELETON DE TEXTO
+// ===================================
+
+interface TextSkeletonProps {
+  lines?: number;
+  className?: string;
 }
 
-// Skeletons específicos para diferentes contextos
+export const TextSkeleton: React.FC<TextSkeletonProps> = ({ 
+  lines = 1, 
+  className 
+}) => (
+  <div className={cn('space-y-2', className)}>
+    {Array.from({ length: lines }, (_, i) => (
+      <Skeleton
+        key={i}
+        className="h-4"
+        width={i === lines - 1 ? '75%' : '100%'}
+      />
+    ))}
+  </div>
+);
 
-export function UserCardSkeleton() {
+// ===================================
+// SKELETON DE AVATAR
+// ===================================
+
+interface AvatarSkeletonProps {
+  size?: 'sm' | 'md' | 'lg' | 'xl';
+  className?: string;
+}
+
+export const AvatarSkeleton: React.FC<AvatarSkeletonProps> = ({ 
+  size = 'md',
+  className 
+}) => {
+  const sizeClasses = {
+    sm: 'w-8 h-8',
+    md: 'w-10 h-10',
+    lg: 'w-12 h-12',
+    xl: 'w-16 h-16'
+  };
+
   return (
-    <div className="border-b border-border p-4">
-      <div className="flex items-center space-x-4">
-        <div className="flex items-center space-x-2">
-          <Skeleton className="h-4 w-4" />
-          <Skeleton className="h-10 w-10 rounded-full" />
+    <Skeleton
+      className={cn(sizeClasses[size], className)}
+      rounded
+    />
+  );
+};
+
+// ===================================
+// SKELETON DE CARTÃO
+// ===================================
+
+interface CardSkeletonProps {
+  showHeader?: boolean;
+  showAvatar?: boolean;
+  lines?: number;
+  className?: string;
+}
+
+export const CardSkeleton: React.FC<CardSkeletonProps> = ({
+  showHeader = true,
+  showAvatar = false,
+  lines = 3,
+  className
+}) => (
+  <div className={cn('p-6 border border-border rounded-lg space-y-4', className)}>
+    {showHeader && (
+      <div className="flex items-center space-x-3">
+        {showAvatar && <AvatarSkeleton />}
+        <div className="flex-1 space-y-2">
+          <Skeleton className="h-5 w-3/4" />
+          <Skeleton className="h-3 w-1/2" />
         </div>
+      </div>
+    )}
+    
+    <div className="space-y-3">
+      <TextSkeleton lines={lines} />
+    </div>
+    
+    <div className="flex space-x-2 pt-2">
+      <Skeleton className="h-8 w-20" />
+      <Skeleton className="h-8 w-20" />
+    </div>
+  </div>
+);
+
+// ===================================
+// SKELETON DE TABELA
+// ===================================
+
+interface TableSkeletonProps {
+  rows?: number;
+  columns?: number;
+  showHeader?: boolean;
+  className?: string;
+}
+
+export const TableSkeleton: React.FC<TableSkeletonProps> = ({
+  rows = 5,
+  columns = 4,
+  showHeader = true,
+  className
+}) => (
+  <div className={cn('space-y-4', className)}>
+    {showHeader && (
+      <div className="grid grid-cols-4 gap-4 p-4 border-b border-border">
+        {Array.from({ length: columns }, (_, i) => (
+          <Skeleton key={i} className="h-4" />
+        ))}
+      </div>
+    )}
+    
+    {Array.from({ length: rows }, (_, rowIndex) => (
+      <div key={rowIndex} className="grid grid-cols-4 gap-4 p-4 border-b border-border">
+        {Array.from({ length: columns }, (_, colIndex) => (
+          <Skeleton key={colIndex} className="h-4" />
+        ))}
+      </div>
+    ))}
+  </div>
+);
+
+// ===================================
+// SKELETON DE FORMULÁRIO
+// ===================================
+
+interface FormSkeletonProps {
+  fields?: number;
+  showButtons?: boolean;
+  className?: string;
+}
+
+export const FormSkeleton: React.FC<FormSkeletonProps> = ({
+  fields = 6,
+  showButtons = true,
+  className
+}) => (
+  <div className={cn('space-y-6', className)}>
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      {Array.from({ length: fields }, (_, i) => (
+        <div key={i} className="space-y-2">
+          <Skeleton className="h-4 w-24" />
+          <Skeleton className="h-10 w-full" />
+        </div>
+      ))}
+    </div>
+    
+    {showButtons && (
+      <div className="flex justify-end space-x-3 pt-4 border-t border-border">
+        <Skeleton className="h-10 w-24" />
+        <Skeleton className="h-10 w-32" />
+      </div>
+    )}
+  </div>
+);
+
+// ===================================
+// SKELETON DE LISTA
+// ===================================
+
+interface ListSkeletonProps {
+  items?: number;
+  showAvatar?: boolean;
+  showAction?: boolean;
+  className?: string;
+}
+
+export const ListSkeleton: React.FC<ListSkeletonProps> = ({
+  items = 5,
+  showAvatar = true,
+  showAction = true,
+  className
+}) => (
+  <div className={cn('space-y-4', className)}>
+    {Array.from({ length: items }, (_, i) => (
+      <div key={i} className="flex items-center space-x-4 p-4 border border-border rounded-lg">
+        {showAvatar && <AvatarSkeleton />}
         
         <div className="flex-1 space-y-2">
-          <div className="flex items-center space-x-3">
-            <Skeleton className="h-4 w-32" />
-            <Skeleton className="h-5 w-20 rounded-full" />
-            <Skeleton className="h-5 w-16 rounded-full" />
-          </div>
-          <div className="flex items-center space-x-4">
-            <Skeleton className="h-3 w-40" />
-            <Skeleton className="h-3 w-24" />
-            <Skeleton className="h-3 w-28" />
-          </div>
+          <Skeleton className="h-4 w-3/4" />
+          <Skeleton className="h-3 w-1/2" />
         </div>
         
-        <div className="flex items-center space-x-2">
-          <Skeleton className="h-8 w-8" />
-          <Skeleton className="h-8 w-8" />
-          <Skeleton className="h-8 w-8" />
-          <Skeleton className="h-8 w-8" />
-        </div>
+        {showAction && (
+          <div className="flex space-x-2">
+            <Skeleton className="h-8 w-8" />
+            <Skeleton className="h-8 w-8" />
+          </div>
+        )}
       </div>
-    </div>
-  );
+    ))}
+  </div>
+);
+
+// ===================================
+// SKELETON DE DASHBOARD
+// ===================================
+
+interface DashboardSkeletonProps {
+  className?: string;
 }
 
-export function UserDetailSkeleton() {
-  return (
-    <div className="container mx-auto px-6 py-8 space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center space-x-4">
-          <Skeleton className="h-8 w-16" />
-          <div className="space-y-2">
-            <div className="flex items-center space-x-3">
-              <Skeleton className="h-8 w-48" />
-              <Skeleton className="h-6 w-24 rounded-full" />
-            </div>
-            <div className="flex items-center space-x-4">
-              <Skeleton className="h-4 w-32" />
-              <Skeleton className="h-5 w-16 rounded-full" />
-            </div>
-          </div>
-        </div>
-        <div className="flex items-center space-x-3">
-          <Skeleton className="h-9 w-24" />
-          <Skeleton className="h-9 w-20" />
-        </div>
+export const DashboardSkeleton: React.FC<DashboardSkeletonProps> = ({ 
+  className 
+}) => (
+  <div className={cn('space-y-6', className)}>
+    {/* Header */}
+    <div className="flex items-center justify-between">
+      <div className="space-y-2">
+        <Skeleton className="h-8 w-64" />
+        <Skeleton className="h-4 w-96" />
       </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Main content */}
-        <div className="lg:col-span-2 space-y-6">
-          {/* Personal info card */}
-          <div className="border border-border rounded-lg p-6">
-            <div className="flex items-center space-x-2 mb-4">
-              <Skeleton className="h-5 w-5" />
-              <Skeleton className="h-5 w-40" />
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-4">
-                {Array.from({ length: 4 }).map((_, i) => (
-                  <div key={i}>
-                    <Skeleton className="h-3 w-24 mb-2" />
-                    <Skeleton className="h-4 w-full" />
-                  </div>
-                ))}
-              </div>
-              <div className="space-y-4">
-                {Array.from({ length: 3 }).map((_, i) => (
-                  <div key={i} className="flex items-center space-x-3">
-                    <Skeleton className="h-4 w-4" />
-                    <div>
-                      <Skeleton className="h-3 w-16 mb-1" />
-                      <Skeleton className="h-4 w-32" />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {/* Permissions card */}
-          <div className="border border-border rounded-lg p-6">
-            <div className="flex items-center space-x-2 mb-4">
-              <Skeleton className="h-5 w-5" />
-              <Skeleton className="h-5 w-48" />
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-              {Array.from({ length: 8 }).map((_, i) => (
-                <div key={i} className="flex items-center space-x-2 p-2">
-                  <Skeleton className="h-4 w-4" />
-                  <Skeleton className="h-4 w-40" />
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Activity card */}
-          <div className="border border-border rounded-lg p-6">
-            <div className="flex items-center space-x-2 mb-4">
-              <Skeleton className="h-5 w-5" />
-              <Skeleton className="h-5 w-36" />
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-4">
-                {Array.from({ length: 2 }).map((_, i) => (
-                  <div key={i} className="flex items-center space-x-3">
-                    <Skeleton className="h-4 w-4" />
-                    <div>
-                      <Skeleton className="h-3 w-20 mb-1" />
-                      <Skeleton className="h-4 w-36" />
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <div className="space-y-4">
-                {Array.from({ length: 3 }).map((_, i) => (
-                  <div key={i} className="flex items-center space-x-3">
-                    <Skeleton className="h-4 w-4" />
-                    <div>
-                      <Skeleton className="h-3 w-24 mb-1" />
-                      <Skeleton className="h-4 w-32" />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Sidebar */}
-        <div className="space-y-6">
-          {/* Status card */}
-          <div className="border border-border rounded-lg p-6">
-            <Skeleton className="h-5 w-32 mb-4" />
-            <div className="text-center">
-              <Skeleton className="h-16 w-16 rounded-full mx-auto mb-3" />
-              <Skeleton className="h-5 w-24 mx-auto mb-2" />
-              <Skeleton className="h-4 w-40 mx-auto" />
-            </div>
-          </div>
-
-          {/* Actions card */}
-          <div className="border border-border rounded-lg p-6">
-            <Skeleton className="h-5 w-28 mb-4" />
-            <div className="space-y-3">
-              {Array.from({ length: 4 }).map((_, i) => (
-                <Skeleton key={i} className="h-9 w-full" />
-              ))}
-            </div>
-          </div>
-
-          {/* System info card */}
-          <div className="border border-border rounded-lg p-6">
-            <Skeleton className="h-5 w-36 mb-4" />
-            <div className="space-y-3">
-              {Array.from({ length: 4 }).map((_, i) => (
-                <div key={i} className="flex justify-between">
-                  <Skeleton className="h-3 w-20" />
-                  <Skeleton className="h-3 w-24" />
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
+      <div className="flex space-x-3">
+        <Skeleton className="h-10 w-24" />
+        <Skeleton className="h-10 w-32" />
       </div>
     </div>
-  );
+    
+    {/* Métricas */}
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      {Array.from({ length: 4 }, (_, i) => (
+        <CardSkeleton key={i} showHeader={false} lines={1} />
+      ))}
+    </div>
+    
+    {/* Conteúdo principal */}
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="lg:col-span-2">
+        <CardSkeleton showHeader lines={8} />
+      </div>
+      <div>
+        <CardSkeleton showHeader lines={5} />
+      </div>
+    </div>
+  </div>
+);
+
+// ===================================
+// SKELETON DE DETALHES DE USUÁRIO
+// ===================================
+
+interface UserDetailSkeletonProps {
+  className?: string;
 }
 
-export function FormSkeleton() {
-  return (
-    <div className="container mx-auto px-6 py-8 space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center space-x-4">
-          <Skeleton className="h-8 w-16" />
-          <div>
-            <Skeleton className="h-8 w-32 mb-2" />
-            <Skeleton className="h-4 w-48" />
+export const UserDetailSkeleton: React.FC<UserDetailSkeletonProps> = ({ 
+  className 
+}) => (
+  <div className={cn('space-y-6', className)}>
+    {/* Header */}
+    <div className="flex items-center justify-between">
+      <div className="flex items-center space-x-4">
+        <Skeleton className="h-6 w-20" />
+        <div className="space-y-2">
+          <Skeleton className="h-8 w-64" />
+          <div className="flex items-center space-x-4">
+            <Skeleton className="h-4 w-32" />
+            <Skeleton className="h-4 w-24" />
+            <Skeleton className="h-4 w-16" />
           </div>
         </div>
       </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Main form */}
-        <div className="lg:col-span-2 space-y-6">
-          {/* Access data card */}
-          <div className="border border-border rounded-lg p-6">
-            <div className="flex items-center space-x-2 mb-4">
-              <Skeleton className="h-5 w-5" />
-              <Skeleton className="h-5 w-32" />
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {Array.from({ length: 4 }).map((_, i) => (
-                <div key={i}>
-                  <Skeleton className="h-4 w-24 mb-2" />
-                  <Skeleton className="h-10 w-full" />
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Personal data card */}
-          <div className="border border-border rounded-lg p-6">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center space-x-2">
-                <Skeleton className="h-5 w-5" />
-                <Skeleton className="h-5 w-32" />
-              </div>
-              <div className="flex space-x-4">
-                <Skeleton className="h-4 w-32" />
-                <Skeleton className="h-4 w-36" />
-              </div>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {Array.from({ length: 6 }).map((_, i) => (
-                <div key={i}>
-                  <Skeleton className="h-4 w-20 mb-2" />
-                  <Skeleton className="h-10 w-full" />
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Permissions card */}
-          <div className="border border-border rounded-lg p-6">
-            <div className="flex items-center space-x-2 mb-4">
-              <Skeleton className="h-5 w-5" />
-              <Skeleton className="h-5 w-40" />
-            </div>
-            <Skeleton className="h-4 w-full mb-4" />
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {Array.from({ length: 12 }).map((_, i) => (
-                <div key={i} className="flex items-center space-x-3 p-3 border border-input rounded-md">
-                  <Skeleton className="h-4 w-4" />
-                  <Skeleton className="h-4 w-40" />
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* Sidebar */}
-        <div className="space-y-6">
-          {/* Status card */}
-          <div className="border border-border rounded-lg p-6">
-            <Skeleton className="h-5 w-32 mb-4" />
-            <div className="flex items-center justify-between mb-4">
-              <Skeleton className="h-4 w-24" />
-              <Skeleton className="h-6 w-11" />
-            </div>
-            <Skeleton className="h-4 w-full" />
-          </div>
-
-          {/* Actions card */}
-          <div className="border border-border rounded-lg p-6">
-            <Skeleton className="h-5 w-16 mb-4" />
-            <div className="space-y-3">
-              <Skeleton className="h-10 w-full" />
-              <Skeleton className="h-10 w-full" />
-            </div>
-          </div>
-
-          {/* Info card */}
-          <div className="border border-border rounded-lg p-6">
-            <Skeleton className="h-5 w-24 mb-4" />
-            <div className="flex items-start space-x-2">
-              <Skeleton className="h-4 w-4 mt-0.5" />
-              <div className="space-y-2 flex-1">
-                <Skeleton className="h-4 w-32" />
-                <div className="space-y-1">
-                  {Array.from({ length: 4 }).map((_, i) => (
-                    <Skeleton key={i} className="h-3 w-full" />
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+      <div className="flex space-x-3">
+        <Skeleton className="h-10 w-24" />
+        <Skeleton className="h-10 w-20" />
       </div>
     </div>
-  );
+    
+    {/* Conteúdo */}
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="lg:col-span-2 space-y-6">
+        <CardSkeleton showHeader lines={4} />
+        <CardSkeleton showHeader lines={3} />
+        <CardSkeleton showHeader lines={5} />
+      </div>
+      
+      <div className="space-y-6">
+        <CardSkeleton showHeader={false} lines={2} />
+        <CardSkeleton showHeader lines={6} />
+        <CardSkeleton showHeader lines={3} />
+      </div>
+    </div>
+  </div>
+);
+
+// ===================================
+// SKELETON DE PÁGINA DE GESTÃO
+// ===================================
+
+interface ManagementPageSkeletonProps {
+  className?: string;
 }
 
-export function TableSkeleton({ rows = 5 }: { rows?: number }) {
-  return (
-    <div className="space-y-4">
-      {/* Header */}
+export const ManagementPageSkeleton: React.FC<ManagementPageSkeletonProps> = ({ 
+  className 
+}) => (
+  <div className={cn('space-y-6', className)}>
+    {/* Header */}
+    <div className="flex items-center justify-between">
+      <div className="space-y-2">
+        <Skeleton className="h-8 w-48" />
+        <Skeleton className="h-4 w-72" />
+      </div>
+      <div className="flex space-x-3">
+        <Skeleton className="h-10 w-24" />
+        <Skeleton className="h-10 w-24" />
+        <Skeleton className="h-10 w-32" />
+      </div>
+    </div>
+    
+    {/* Barra de busca e filtros */}
+    <div className="p-6 border border-border rounded-lg">
+      <div className="flex items-center space-x-4">
+        <Skeleton className="h-10 flex-1" />
+        <Skeleton className="h-10 w-24" />
+      </div>
+    </div>
+    
+    {/* Lista/Tabela */}
+    <div className="border border-border rounded-lg">
+      <div className="p-4 border-b border-border">
+        <Skeleton className="h-6 w-48" />
+      </div>
+      <ListSkeleton items={8} />
+    </div>
+    
+    {/* Paginação */}
+    <div className="p-4 border border-border rounded-lg">
       <div className="flex items-center justify-between">
-        <div>
-          <Skeleton className="h-8 w-48 mb-2" />
-          <Skeleton className="h-4 w-64" />
-        </div>
-        <div className="flex items-center space-x-3">
-          <Skeleton className="h-9 w-24" />
-          <Skeleton className="h-9 w-20" />
-          <Skeleton className="h-9 w-32" />
-        </div>
-      </div>
-
-      {/* Search and filters */}
-      <div className="border border-border rounded-lg p-6">
-        <div className="flex items-center space-x-4">
-          <Skeleton className="h-10 flex-1" />
-          <Skeleton className="h-9 w-20" />
-        </div>
-      </div>
-
-      {/* Table */}
-      <div className="border border-border rounded-lg">
-        <div className="p-6">
-          <Skeleton className="h-6 w-40 mb-4" />
-        </div>
-        <div>
-          {Array.from({ length: rows }).map((_, i) => (
-            <UserCardSkeleton key={i} />
-          ))}
-        </div>
-      </div>
-
-      {/* Pagination */}
-      <div className="border border-border rounded-lg p-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-2">
-            <Skeleton className="h-4 w-40" />
-            <Skeleton className="h-8 w-32" />
-          </div>
-          <div className="flex items-center space-x-2">
-            <Skeleton className="h-8 w-20" />
-            <div className="flex space-x-1">
-              {Array.from({ length: 3 }).map((_, i) => (
-                <Skeleton key={i} className="h-8 w-8" />
-              ))}
-            </div>
-            <Skeleton className="h-8 w-20" />
-          </div>
+        <Skeleton className="h-4 w-64" />
+        <div className="flex space-x-2">
+          <Skeleton className="h-8 w-20" />
+          <Skeleton className="h-8 w-8" />
+          <Skeleton className="h-8 w-8" />
+          <Skeleton className="h-8 w-8" />
+          <Skeleton className="h-8 w-20" />
         </div>
       </div>
     </div>
-  );
+  </div>
+);
+
+// ===================================
+// SKELETON DE BUSCA COM RESULTADOS
+// ===================================
+
+interface SearchResultsSkeletonProps {
+  results?: number;
+  showFilters?: boolean;
+  className?: string;
+}
+
+export const SearchResultsSkeleton: React.FC<SearchResultsSkeletonProps> = ({
+  results = 6,
+  showFilters = true,
+  className
+}) => (
+  <div className={cn('space-y-4', className)}>
+    {/* Barra de busca */}
+    <div className="flex items-center space-x-4">
+      <Skeleton className="h-10 flex-1" />
+      {showFilters && <Skeleton className="h-10 w-24" />}
+    </div>
+    
+    {/* Filtros */}
+    {showFilters && (
+      <div className="p-4 border border-border rounded-lg">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <Skeleton className="h-10" />
+          <Skeleton className="h-10" />
+          <Skeleton className="h-10" />
+          <Skeleton className="h-10" />
+        </div>
+      </div>
+    )}
+    
+    {/* Resultados */}
+    <div className="space-y-3">
+      <Skeleton className="h-6 w-48" />
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {Array.from({ length: results }, (_, i) => (
+          <CardSkeleton key={i} showAvatar lines={2} />
+        ))}
+      </div>
+    </div>
+  </div>
+);
+
+// ===================================
+// SKELETON CUSTOMIZÁVEL
+// ===================================
+
+interface CustomSkeletonProps {
+  template: 'card' | 'list' | 'form' | 'table' | 'dashboard' | 'detail';
+  count?: number;
+  showActions?: boolean;
+  showHeader?: boolean;
+  className?: string;
 }

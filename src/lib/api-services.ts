@@ -1,8 +1,9 @@
 // src/lib/api-services.ts
+import { useState, useEffect } from 'react';
 
-// ==========================================
-// INTERFACES E TIPOS
-// ==========================================
+// ===================================
+// INTERFACES BASE
+// ===================================
 
 export interface Endereco {
   logradouro?: string;
@@ -12,15 +13,10 @@ export interface Endereco {
   cidade?: string;
   estado?: string;
   cep?: string;
-  coordenadas?: {
-    latitude?: number;
-    longitude?: number;
-  };
 }
 
 export interface Pessoa {
   id: string;
-  tenant_id: string;
   nome: string;
   data_nascimento: string;
   sexo: 'M' | 'F' | 'O';
@@ -29,6 +25,7 @@ export interface Pessoa {
   email?: string;
   endereco?: Endereco;
   status: 'ATIVO' | 'INATIVO';
+  tenant_id: string;
   created_at?: string;
   updated_at?: string;
   created_by?: string;
@@ -37,8 +34,7 @@ export interface Pessoa {
 
 export interface Usuario {
   id: string;
-  tenant_id: string;
-  pessoa_id?: string;
+  pessoa_id: string;
   usuario: string;
   papel: 'ADMIN' | 'MEDICO' | 'ENFERMEIRO' | 'RECEPCIONISTA' | 'FARMACEUTICO' | 'LABORATORISTA' | 'GESTOR';
   ativo: boolean;
@@ -49,17 +45,61 @@ export interface Usuario {
   bloqueado_ate?: string;
   created_at: string;
   updated_at: string;
-  created_by?: string;
-  updated_by?: string;
-  pessoa?: {
-    nome: string;
-    cpf: string;
-    email?: string;
-    telefone?: string;
-  };
+  pessoa?: Pessoa;
 }
 
-// Requests
+export interface Paciente {
+  id: string;
+  pessoa_id: string;
+  numero_cartao_sus?: string;
+  tipo_sanguineo?: string;
+  alergias?: string;
+  historico_medico?: string;
+  medicamentos_uso_continuo?: Array<{
+    nome: string;
+    dosagem: string;
+    frequencia: string;
+  }>;
+  contato_emergencia?: {
+    nome: string;
+    parentesco: string;
+    telefone: string;
+  };
+  observacoes?: string;
+  status: 'ATIVO' | 'INATIVO';
+  created_at: string;
+  updated_at: string;
+  pessoa?: Pessoa;
+}
+
+export interface Medico {
+  id: string;
+  pessoa_id: string;
+  crm: string;
+  especialidade: string;
+  conselho_estado: string;
+  data_formacao?: string;
+  instituicao_formacao?: string;
+  unidades_vinculadas?: string[];
+  horarios_atendimento?: Array<{
+    dia_semana: number;
+    hora_inicio: string;
+    hora_fim: string;
+    unidade_id: string;
+  }>;
+  valor_consulta?: number;
+  aceita_convenio?: boolean;
+  convenios?: string[];
+  status: 'ATIVO' | 'INATIVO';
+  created_at: string;
+  updated_at: string;
+  pessoa?: Pessoa;
+}
+
+// ===================================
+// INTERFACES DE REQUEST
+// ===================================
+
 export interface CriarPessoaRequest {
   nome: string;
   data_nascimento: string;
@@ -81,430 +121,489 @@ export interface AtualizarPessoaRequest {
 }
 
 export interface CriarUsuarioRequest {
-  pessoa_id?: string;
+  pessoa_id: string;
   usuario: string;
   senha: string;
   papel: string;
   ativo?: boolean;
   unidades_acesso?: string[];
   permissoes?: string[];
-  // Para criar pessoa junto
-  criar_pessoa?: boolean;
-  pessoa_dados?: CriarPessoaRequest;
 }
 
-export interface AtualizarUsuarioRequest {
-  senha?: string;
-  papel?: string;
+export interface CriarUsuarioCompletoRequest {
+  usuario: string;
+  senha: string;
+  papel: string;
   ativo?: boolean;
   unidades_acesso?: string[];
   permissoes?: string[];
+  dadosPessoa: CriarPessoaRequest;
 }
 
-export interface AlterarSenhaRequest {
-  senha_atual: string;
-  nova_senha: string;
-  confirmar_senha: string;
+export interface CriarPacienteRequest {
+  pessoa_id: string;
+  numero_cartao_sus?: string;
+  tipo_sanguineo?: string;
+  alergias?: string;
+  historico_medico?: string;
+  medicamentos_uso_continuo?: Array<{
+    nome: string;
+    dosagem: string;
+    frequencia: string;
+  }>;
+  contato_emergencia?: {
+    nome: string;
+    parentesco: string;
+    telefone: string;
+  };
+  observacoes?: string;
 }
 
-// Responses
+export interface CriarMedicoRequest {
+  pessoa_id: string;
+  crm: string;
+  especialidade: string;
+  conselho_estado: string;
+  data_formacao?: string;
+  instituicao_formacao?: string;
+  unidades_vinculadas?: string[];
+  horarios_atendimento?: Array<{
+    dia_semana: number;
+    hora_inicio: string;
+    hora_fim: string;
+    unidade_id: string;
+  }>;
+  valor_consulta?: number;
+  aceita_convenio?: boolean;
+  convenios?: string[];
+}
+
+// ===================================
+// INTERFACES DE RESPONSE
+// ===================================
+
 export interface PaginatedResponse<T> {
   data: T[];
-  total: number;
   page: number;
+  limit: number;
+  total: number;
   totalPages: number;
 }
 
-export interface ApiResponse<T> {
-  data?: T;
-  message?: string;
-  error?: string;
+export interface BuscarPessoasParams {
+  page?: number;
+  limit?: number;
+  search?: string;
+  sexo?: 'M' | 'F' | 'O';
+  status?: 'ATIVO' | 'INATIVO';
+  cidade?: string;
+  estado?: string;
 }
 
-// ==========================================
-// SERVIÇOS DE API
-// ==========================================
+// ===================================
+// CONFIGURAÇÃO DA API
+// ===================================
 
-class BaseApiService {
-  protected baseUrl: string;
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3500';
 
-  constructor() {
-    this.baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
-  }
-
-  protected getHeaders(includeAuth = true): Record<string, string> {
+class ApiClient {
+  private getHeaders(): Record<string, string> {
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
     };
 
-    // Incluir tenant
+    const token = localStorage.getItem('auth_token');
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
     const tenant = localStorage.getItem('selected_tenant');
     if (tenant) {
       headers['X-Subdomain'] = tenant;
     }
 
-    // Incluir autenticação
-    if (includeAuth) {
-      const token = localStorage.getItem('auth_token');
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-      }
-    }
-
     return headers;
   }
 
-  protected async handleResponse<T>(response: Response): Promise<T> {
-    const data = await response.json();
+  async request<T>(
+    endpoint: string,
+    options: RequestInit = {}
+  ): Promise<T> {
+    const url = `${API_BASE_URL}${endpoint}`;
     
+    const response = await fetch(url, {
+      ...options,
+      headers: {
+        ...this.getHeaders(),
+        ...options.headers,
+      },
+    });
+
     if (!response.ok) {
-      throw new Error(data.error || `HTTP error! status: ${response.status}`);
+      const errorData = await response.json().catch(() => null);
+      throw new Error(errorData?.error || `HTTP ${response.status}`);
     }
-    
-    return data;
+
+    return response.json();
+  }
+
+  get<T>(endpoint: string): Promise<T> {
+    return this.request<T>(endpoint);
+  }
+
+  post<T>(endpoint: string, data: any): Promise<T> {
+    return this.request<T>(endpoint, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  put<T>(endpoint: string, data: any): Promise<T> {
+    return this.request<T>(endpoint, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  delete<T>(endpoint: string): Promise<T> {
+    return this.request<T>(endpoint, {
+      method: 'DELETE',
+    });
   }
 }
 
-// ==========================================
-// SERVIÇO DE PESSOAS
-// ==========================================
+const apiClient = new ApiClient();
 
-export class PessoaService extends BaseApiService {
-  async listar(params?: {
-    page?: number;
-    limit?: number;
-    search?: string;
-    sexo?: string;
-    status?: string;
-    cidade?: string;
-    estado?: string;
-  }): Promise<PaginatedResponse<Pessoa>> {
+// ===================================
+// SERVIÇOS DE PESSOA
+// ===================================
+
+export const pessoaService = {
+  listar: (params: BuscarPessoasParams = {}): Promise<PaginatedResponse<Pessoa>> => {
     const searchParams = new URLSearchParams();
     
-    if (params?.page) searchParams.append('page', params.page.toString());
-    if (params?.limit) searchParams.append('limit', params.limit.toString());
-    if (params?.search) searchParams.append('search', params.search);
-    if (params?.sexo) searchParams.append('sexo', params.sexo);
-    if (params?.status) searchParams.append('status', params.status);
-    if (params?.cidade) searchParams.append('cidade', params.cidade);
-    if (params?.estado) searchParams.append('estado', params.estado);
-
-    const response = await fetch(
-      `${this.baseUrl}/api/pessoas?${searchParams.toString()}`,
-      {
-        headers: this.getHeaders(),
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== null) {
+        searchParams.append(key, value.toString());
       }
+    });
+
+    return apiClient.get<PaginatedResponse<Pessoa>>(
+      `/api/pessoas?${searchParams.toString()}`
     );
+  },
 
-    return this.handleResponse<PaginatedResponse<Pessoa>>(response);
+  buscarPorId: (id: string): Promise<Pessoa> => {
+    return apiClient.get<Pessoa>(`/api/pessoas/${id}`);
+  },
+
+  buscarPorCpf: (cpf: string): Promise<Pessoa> => {
+    return apiClient.get<Pessoa>(`/api/pessoas/cpf/${cpf}`);
+  },
+
+  criar: (data: CriarPessoaRequest): Promise<Pessoa> => {
+    return apiClient.post<Pessoa>('/api/pessoas', data);
+  },
+
+  atualizar: (id: string, data: AtualizarPessoaRequest): Promise<Pessoa> => {
+    return apiClient.put<Pessoa>(`/api/pessoas/${id}`, data);
+  },
+
+  deletar: (id: string): Promise<boolean> => {
+    return apiClient.delete<boolean>(`/api/pessoas/${id}`);
   }
+};
 
-  async buscarPorId(id: string): Promise<Pessoa> {
-    const response = await fetch(`${this.baseUrl}/api/pessoas/${id}`, {
-      headers: this.getHeaders(),
-    });
+// ===================================
+// SERVIÇOS DE USUÁRIO
+// ===================================
 
-    return this.handleResponse<Pessoa>(response);
-  }
-
-  async buscarPorCpf(cpf: string): Promise<Pessoa> {
-    const response = await fetch(`${this.baseUrl}/api/pessoas/cpf/${cpf}`, {
-      headers: this.getHeaders(),
-    });
-
-    return this.handleResponse<Pessoa>(response);
-  }
-
-  async criar(data: CriarPessoaRequest): Promise<Pessoa> {
-    const response = await fetch(`${this.baseUrl}/api/pessoas`, {
-      method: 'POST',
-      headers: this.getHeaders(),
-      body: JSON.stringify(data),
-    });
-
-    return this.handleResponse<Pessoa>(response);
-  }
-
-  async atualizar(id: string, data: AtualizarPessoaRequest): Promise<Pessoa> {
-    const response = await fetch(`${this.baseUrl}/api/pessoas/${id}`, {
-      method: 'PUT',
-      headers: this.getHeaders(),
-      body: JSON.stringify(data),
-    });
-
-    return this.handleResponse<Pessoa>(response);
-  }
-
-  async deletar(id: string): Promise<{ message: string }> {
-    const response = await fetch(`${this.baseUrl}/api/pessoas/${id}`, {
-      method: 'DELETE',
-      headers: this.getHeaders(),
-    });
-
-    return this.handleResponse<{ message: string }>(response);
-  }
-}
-
-// ==========================================
-// SERVIÇO DE USUÁRIOS
-// ==========================================
-
-export class UsuarioService extends BaseApiService {
-  async listar(params?: {
-    page?: number;
-    limit?: number;
-    search?: string;
-    papel?: string;
-    ativo?: boolean;
-    unidade_id?: string;
-  }): Promise<PaginatedResponse<Usuario>> {
+export const usuarioService = {
+  listar: (params: any = {}): Promise<PaginatedResponse<Usuario>> => {
     const searchParams = new URLSearchParams();
     
-    if (params?.page) searchParams.append('page', params.page.toString());
-    if (params?.limit) searchParams.append('limit', params.limit.toString());
-    if (params?.search) searchParams.append('search', params.search);
-    if (params?.papel) searchParams.append('papel', params.papel);
-    if (params?.ativo !== undefined) searchParams.append('ativo', params.ativo.toString());
-    if (params?.unidade_id) searchParams.append('unidade_id', params.unidade_id);
-
-    const response = await fetch(
-      `${this.baseUrl}/api/usuarios?${searchParams.toString()}`,
-      {
-        headers: this.getHeaders(),
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== null) {
+        searchParams.append(key, value.toString());
       }
+    });
+
+    return apiClient.get<PaginatedResponse<Usuario>>(
+      `/api/usuarios?${searchParams.toString()}`
     );
+  },
 
-    return this.handleResponse<PaginatedResponse<Usuario>>(response);
+  buscarPorId: (id: string): Promise<Usuario> => {
+    return apiClient.get<Usuario>(`/api/usuarios/${id}`);
+  },
+
+  criar: (data: CriarUsuarioRequest): Promise<Usuario> => {
+    return apiClient.post<Usuario>('/api/usuarios', data);
+  },
+
+  criarCompleto: (data: CriarUsuarioCompletoRequest): Promise<Usuario> => {
+    return apiClient.post<Usuario>('/api/usuarios/completo', data);
+  },
+
+  atualizar: (id: string, data: any): Promise<Usuario> => {
+    return apiClient.put<Usuario>(`/api/usuarios/${id}`, data);
+  },
+
+  deletar: (id: string): Promise<boolean> => {
+    return apiClient.delete<boolean>(`/api/usuarios/${id}`);
+  },
+
+  bloquear: (id: string, tempo_minutos: number): Promise<boolean> => {
+    return apiClient.put<boolean>(`/api/usuarios/${id}/bloquear`, { tempo_minutos });
+  },
+
+  desbloquear: (id: string): Promise<boolean> => {
+    return apiClient.put<boolean>(`/api/usuarios/${id}/desbloquear`, {});
+  },
+
+  alterarSenha: (id: string, senhaAtual: string, novaSenha: string): Promise<boolean> => {
+    return apiClient.put<boolean>(`/api/usuarios/${id}/senha`, {
+      senha_atual: senhaAtual,
+      nova_senha: novaSenha
+    });
+  },
+
+  login: (usuario: string, senha: string): Promise<{ token: string; usuario: Usuario }> => {
+    return apiClient.post<{ token: string; usuario: Usuario }>('/api/usuarios/login', {
+      usuario,
+      senha
+    });
   }
+};
 
-  async buscarPorId(id: string): Promise<Usuario> {
-    const response = await fetch(`${this.baseUrl}/api/usuarios/${id}`, {
-      headers: this.getHeaders(),
+// ===================================
+// SERVIÇOS DE PACIENTE
+// ===================================
+
+export const pacienteService = {
+  listar: (params: any = {}): Promise<PaginatedResponse<Paciente>> => {
+    const searchParams = new URLSearchParams();
+    
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== null) {
+        searchParams.append(key, value.toString());
+      }
     });
 
-    return this.handleResponse<Usuario>(response);
-  }
+    return apiClient.get<PaginatedResponse<Paciente>>(
+      `/api/pacientes?${searchParams.toString()}`
+    );
+  },
 
-  async criar(data: CriarUsuarioRequest): Promise<Usuario> {
-    const response = await fetch(`${this.baseUrl}/api/usuarios`, {
-      method: 'POST',
-      headers: this.getHeaders(),
-      body: JSON.stringify(data),
+  buscarPorId: (id: string): Promise<Paciente> => {
+    return apiClient.get<Paciente>(`/api/pacientes/${id}`);
+  },
+
+  buscarPorCpf: (cpf: string): Promise<Paciente> => {
+    return apiClient.get<Paciente>(`/api/pacientes/cpf/${cpf}`);
+  },
+
+  buscarPorCartaoSus: (cartao: string): Promise<Paciente> => {
+    return apiClient.get<Paciente>(`/api/pacientes/cartao-sus/${cartao}`);
+  },
+
+  obterHistorico: (id: string): Promise<any> => {
+    return apiClient.get<any>(`/api/pacientes/${id}/historico`);
+  },
+
+  criar: (data: CriarPacienteRequest): Promise<Paciente> => {
+    return apiClient.post<Paciente>('/api/pacientes', data);
+  },
+
+  criarCompleto: (data: any): Promise<Paciente> => {
+    return apiClient.post<Paciente>('/api/pacientes/completo', data);
+  },
+
+  atualizar: (id: string, data: any): Promise<Paciente> => {
+    return apiClient.put<Paciente>(`/api/pacientes/${id}`, data);
+  },
+
+  deletar: (id: string): Promise<boolean> => {
+    return apiClient.delete<boolean>(`/api/pacientes/${id}`);
+  }
+};
+
+// ===================================
+// SERVIÇOS DE MÉDICO
+// ===================================
+
+export const medicoService = {
+  listar: (params: any = {}): Promise<PaginatedResponse<Medico>> => {
+    const searchParams = new URLSearchParams();
+    
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== null) {
+        searchParams.append(key, value.toString());
+      }
     });
 
-    return this.handleResponse<Usuario>(response);
+    return apiClient.get<PaginatedResponse<Medico>>(
+      `/api/medicos?${searchParams.toString()}`
+    );
+  },
+
+  buscarPorId: (id: string): Promise<Medico> => {
+    return apiClient.get<Medico>(`/api/medicos/${id}`);
+  },
+
+  buscarPorCrm: (crm: string): Promise<Medico> => {
+    return apiClient.get<Medico>(`/api/medicos/crm/${crm}`);
+  },
+
+  buscarPorEspecialidade: (especialidade: string): Promise<Medico[]> => {
+    return apiClient.get<Medico[]>(`/api/medicos/especialidade/${especialidade}`);
+  },
+
+  obterAgenda: (id: string, data: string): Promise<any> => {
+    return apiClient.get<any>(`/api/medicos/${id}/agenda?data=${data}`);
+  },
+
+  obterEstatisticas: (id: string): Promise<any> => {
+    return apiClient.get<any>(`/api/medicos/${id}/estatisticas`);
+  },
+
+  criar: (data: CriarMedicoRequest): Promise<Medico> => {
+    return apiClient.post<Medico>('/api/medicos', data);
+  },
+
+  criarCompleto: (data: any): Promise<Medico> => {
+    return apiClient.post<Medico>('/api/medicos/completo', data);
+  },
+
+  atualizar: (id: string, data: any): Promise<Medico> => {
+    return apiClient.put<Medico>(`/api/medicos/${id}`, data);
+  },
+
+  deletar: (id: string): Promise<boolean> => {
+    return apiClient.delete<boolean>(`/api/medicos/${id}`);
   }
+};
 
-  async atualizar(id: string, data: AtualizarUsuarioRequest): Promise<Usuario> {
-    const response = await fetch(`${this.baseUrl}/api/usuarios/${id}`, {
-      method: 'PUT',
-      headers: this.getHeaders(),
-      body: JSON.stringify(data),
-    });
+// ===================================
+// HOOKS CUSTOMIZADOS
+// ===================================
 
-    return this.handleResponse<Usuario>(response);
-  }
-
-  async alterarSenha(id: string, data: AlterarSenhaRequest): Promise<{ message: string }> {
-    const response = await fetch(`${this.baseUrl}/api/usuarios/${id}/senha`, {
-      method: 'PUT',
-      headers: this.getHeaders(),
-      body: JSON.stringify(data),
-    });
-
-    return this.handleResponse<{ message: string }>(response);
-  }
-
-  async bloquear(id: string, tempoMinutos: number = 30): Promise<{ message: string }> {
-    const response = await fetch(`${this.baseUrl}/api/usuarios/${id}/bloquear`, {
-      method: 'PUT',
-      headers: this.getHeaders(),
-      body: JSON.stringify({ tempo_minutos: tempoMinutos }),
-    });
-
-    return this.handleResponse<{ message: string }>(response);
-  }
-
-  async desbloquear(id: string): Promise<{ message: string }> {
-    const response = await fetch(`${this.baseUrl}/api/usuarios/${id}/desbloquear`, {
-      method: 'PUT',
-      headers: this.getHeaders(),
-    });
-
-    return this.handleResponse<{ message: string }>(response);
-  }
-
-  async deletar(id: string): Promise<{ message: string }> {
-    const response = await fetch(`${this.baseUrl}/api/usuarios/${id}`, {
-      method: 'DELETE',
-      headers: this.getHeaders(),
-    });
-
-    return this.handleResponse<{ message: string }>(response);
-  }
-
-  async obterPerfil(): Promise<Usuario> {
-    const response = await fetch(`${this.baseUrl}/api/usuarios/perfil`, {
-      headers: this.getHeaders(),
-    });
-
-    return this.handleResponse<Usuario>(response);
-  }
-
-  async criarPrimeiroUsuario(data: {
-    usuario: string;
-    senha: string;
-    papel: string;
-    pessoa_dados: CriarPessoaRequest;
-  }): Promise<{ message: string; usuario: Usuario }> {
-    const response = await fetch(`${this.baseUrl}/api/usuarios/setup`, {
-      method: 'POST',
-      headers: this.getHeaders(false), // Não incluir auth para setup
-      body: JSON.stringify(data),
-    });
-
-    return this.handleResponse<{ message: string; usuario: Usuario }>(response);
-  }
-}
-
-// ==========================================
-// INSTÂNCIAS DOS SERVIÇOS
-// ==========================================
-
-export const pessoaService = new PessoaService();
-export const usuarioService = new UsuarioService();
-
-// ==========================================
-// HOOKS PERSONALIZADOS
-// ==========================================
-
-import { useState, useEffect } from 'react';
-
-export function usePessoas(params?: {
-  page?: number;
-  limit?: number;
-  search?: string;
-  sexo?: string;
-  status?: string;
-  cidade?: string;
-  estado?: string;
-}) {
+export function usePessoas(params: BuscarPessoasParams = {}) {
   const [pessoas, setPessoas] = useState<Pessoa[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [pagination, setPagination] = useState({
-    total: 0,
-    page: 1,
-    totalPages: 0
-  });
 
-  const loadPessoas = async () => {
+  const fetchPessoas = async () => {
     try {
       setLoading(true);
       setError(null);
       const response = await pessoaService.listar(params);
       setPessoas(response.data);
-      setPagination({
-        total: response.total,
-        page: response.page,
-        totalPages: response.totalPages
-      });
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro ao carregar pessoas');
+      setError(err instanceof Error ? err.message : 'Erro desconhecido');
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    loadPessoas();
+    fetchPessoas();
   }, [JSON.stringify(params)]);
 
   return {
     pessoas,
     loading,
     error,
-    pagination,
-    refetch: loadPessoas
+    refetch: fetchPessoas
   };
 }
 
-export function useUsuarios(params?: {
-  page?: number;
-  limit?: number;
-  search?: string;
-  papel?: string;
-  ativo?: boolean;
-  unidade_id?: string;
-}) {
+export function useUsuarios(params: any = {}) {
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [pagination, setPagination] = useState({
-    total: 0,
-    page: 1,
-    totalPages: 0
-  });
 
-  const loadUsuarios = async () => {
+  const fetchUsuarios = async () => {
     try {
       setLoading(true);
       setError(null);
       const response = await usuarioService.listar(params);
       setUsuarios(response.data);
-      setPagination({
-        total: response.total,
-        page: response.page,
-        totalPages: response.totalPages
-      });
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro ao carregar usuários');
+      setError(err instanceof Error ? err.message : 'Erro desconhecido');
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    loadUsuarios();
+    fetchUsuarios();
   }, [JSON.stringify(params)]);
 
   return {
     usuarios,
     loading,
     error,
-    pagination,
-    refetch: loadUsuarios
+    refetch: fetchUsuarios
   };
 }
 
-export function useUsuario(id: string) {
-  const [usuario, setUsuario] = useState<Usuario | null>(null);
+export function usePacientes(params: any = {}) {
+  const [pacientes, setPacientes] = useState<Paciente[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const loadUsuario = async () => {
-    if (!id) return;
-
+  const fetchPacientes = async () => {
     try {
       setLoading(true);
       setError(null);
-      const response = await usuarioService.buscarPorId(id);
-      setUsuario(response);
+      const response = await pacienteService.listar(params);
+      setPacientes(response.data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro ao carregar usuário');
+      setError(err instanceof Error ? err.message : 'Erro desconhecido');
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    loadUsuario();
-  }, [id]);
+    fetchPacientes();
+  }, [JSON.stringify(params)]);
 
   return {
-    usuario,
+    pacientes,
     loading,
     error,
-    refetch: loadUsuario
+    refetch: fetchPacientes
+  };
+}
+
+export function useMedicos(params: any = {}) {
+  const [medicos, setMedicos] = useState<Medico[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchMedicos = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const response = await medicoService.listar(params);
+      setMedicos(response.data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erro desconhecido');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchMedicos();
+  }, [JSON.stringify(params)]);
+
+  return {
+    medicos,
+    loading,
+    error,
+    refetch: fetchMedicos
   };
 }

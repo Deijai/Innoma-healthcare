@@ -1,461 +1,223 @@
 // src/components/forms/FormComponents.tsx
 'use client';
 
-import React, { forwardRef } from 'react';
+import React, { forwardRef, useState } from 'react';
 import { Button } from '@/components/ui/Button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
-import { 
-  User, 
-  Calendar, 
-  Phone, 
-  Mail, 
-  MapPin, 
-  Eye, 
-  EyeOff, 
-  Search,
-  X,
-  AlertCircle,
-  CheckCircle,
-  Loader2,
-  Plus,
-  Trash2,
-  Edit
-} from 'lucide-react';
-import { useState } from 'react';
+import { Search, Eye, EyeOff, Calendar, MapPin, User, Mail, Phone, X, AlertCircle, CheckCircle, Clock } from 'lucide-react';
 
-// ==========================================
-// TIPOS COMPARTILHADOS
-// ==========================================
+// ===================================
+// INTERFACES
+// ===================================
 
-export interface FormFieldProps {
-  label: string;
+interface FormFieldProps {
+  label?: string;
   error?: string;
   required?: boolean;
-  disabled?: boolean;
+  children: React.ReactNode;
   className?: string;
-  helpText?: string;
 }
 
-export interface InputProps extends FormFieldProps, Omit<React.InputHTMLAttributes<HTMLInputElement>, 'className'> {
-  icon?: React.ReactNode;
-  mask?: 'cpf' | 'phone' | 'cep' | 'cnpj' | 'cartao-sus';
+interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
+  label?: string;
+  error?: string;
+  leftIcon?: React.ReactNode;
+  rightIcon?: React.ReactNode;
 }
 
-export interface SelectProps extends FormFieldProps, Omit<React.SelectHTMLAttributes<HTMLSelectElement>, 'className'> {
+interface TextAreaProps extends React.TextareaHTMLAttributes<HTMLTextAreaElement> {
+  label?: string;
+  error?: string;
+}
+
+interface SelectProps extends React.SelectHTMLAttributes<HTMLSelectElement> {
+  label?: string;
+  error?: string;
   options: Array<{ value: string; label: string; disabled?: boolean }>;
   placeholder?: string;
 }
 
-export interface TextAreaProps extends FormFieldProps, Omit<React.TextareaHTMLAttributes<HTMLTextAreaElement>, 'className'> {}
-
-// ==========================================
-// COMPONENTE INPUT BASE
-// ==========================================
-
-export const FormInput = forwardRef<HTMLInputElement, InputProps>(
-  ({ label, error, required, disabled, className, helpText, icon, mask, ...props }, ref) => {
-    const [showPassword, setShowPassword] = useState(false);
-    const isPassword = props.type === 'password';
-
-    const applyMask = (value: string, maskType: string) => {
-      const numbers = value.replace(/\D/g, '');
-      
-      switch (maskType) {
-        case 'cpf':
-          return numbers.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
-        case 'phone':
-          if (numbers.length <= 10) {
-            return numbers.replace(/(\d{2})(\d{4})(\d{4})/, '($1) $2-$3');
-          }
-          return numbers.replace(/(\d{2})(\d{5})(\d{4})/, '($1) $2-$3');
-        case 'cep':
-          return numbers.replace(/(\d{5})(\d{3})/, '$1-$2');
-        case 'cnpj':
-          return numbers.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, '$1.$2.$3/$4-$5');
-        case 'cartao-sus':
-          return numbers.replace(/(\d{3})(\d{4})(\d{4})(\d{4})/, '$1 $2 $3 $4');
-        default:
-          return value;
-      }
-    };
-
-    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-      if (mask && e.target.value) {
-        e.target.value = applyMask(e.target.value, mask);
-      }
-      props.onChange?.(e);
-    };
-
-    return (
-      <div className={`space-y-2 ${className || ''}`}>
-        <label className="block text-sm font-medium text-foreground">
-          {label}
-          {required && <span className="text-red-500 ml-1">*</span>}
-        </label>
-        
-        <div className="relative">
-          {icon && (
-            <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground">
-              {icon}
-            </div>
-          )}
-          
-          <input
-            ref={ref}
-            {...props}
-            type={isPassword && showPassword ? 'text' : props.type}
-            onChange={handleChange}
-            disabled={disabled}
-            className={`
-              w-full px-3 py-2 border border-input bg-background text-foreground text-sm
-              rounded-md focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent
-              disabled:opacity-50 disabled:cursor-not-allowed
-              ${icon ? 'pl-10' : ''}
-              ${isPassword ? 'pr-10' : ''}
-              ${error ? 'border-red-500 focus:ring-red-500' : ''}
-            `}
-          />
-          
-          {isPassword && (
-            <button
-              type="button"
-              onClick={() => setShowPassword(!showPassword)}
-              className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-foreground"
-            >
-              {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-            </button>
-          )}
-        </div>
-        
-        {error && (
-          <div className="flex items-center space-x-1 text-red-500 text-xs">
-            <AlertCircle className="h-3 w-3" />
-            <span>{error}</span>
-          </div>
-        )}
-        
-        {helpText && !error && (
-          <p className="text-xs text-muted-foreground">{helpText}</p>
-        )}
-      </div>
-    );
-  }
-);
-
-FormInput.displayName = 'FormInput';
-
-// ==========================================
-// COMPONENTE SELECT BASE
-// ==========================================
-
-export const FormSelect = forwardRef<HTMLSelectElement, SelectProps>(
-  ({ label, error, required, disabled, className, helpText, options, placeholder, ...props }, ref) => {
-    return (
-      <div className={`space-y-2 ${className || ''}`}>
-        <label className="block text-sm font-medium text-foreground">
-          {label}
-          {required && <span className="text-red-500 ml-1">*</span>}
-        </label>
-        
-        <select
-          ref={ref}
-          {...props}
-          disabled={disabled}
-          className={`
-            w-full px-3 py-2 border border-input bg-background text-foreground text-sm
-            rounded-md focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent
-            disabled:opacity-50 disabled:cursor-not-allowed
-            ${error ? 'border-red-500 focus:ring-red-500' : ''}
-          `}
-        >
-          {placeholder && (
-            <option value="" disabled>
-              {placeholder}
-            </option>
-          )}
-          {options.map((option) => (
-            <option key={option.value} value={option.value} disabled={option.disabled}>
-              {option.label}
-            </option>
-          ))}
-        </select>
-        
-        {error && (
-          <div className="flex items-center space-x-1 text-red-500 text-xs">
-            <AlertCircle className="h-3 w-3" />
-            <span>{error}</span>
-          </div>
-        )}
-        
-        {helpText && !error && (
-          <p className="text-xs text-muted-foreground">{helpText}</p>
-        )}
-      </div>
-    );
-  }
-);
-
-FormSelect.displayName = 'FormSelect';
-
-// ==========================================
-// COMPONENTE TEXTAREA BASE
-// ==========================================
-
-export const FormTextArea = forwardRef<HTMLTextAreaElement, TextAreaProps>(
-  ({ label, error, required, disabled, className, helpText, ...props }, ref) => {
-    return (
-      <div className={`space-y-2 ${className || ''}`}>
-        <label className="block text-sm font-medium text-foreground">
-          {label}
-          {required && <span className="text-red-500 ml-1">*</span>}
-        </label>
-        
-        <textarea
-          ref={ref}
-          {...props}
-          disabled={disabled}
-          className={`
-            w-full px-3 py-2 border border-input bg-background text-foreground text-sm
-            rounded-md focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent
-            disabled:opacity-50 disabled:cursor-not-allowed resize-y
-            ${error ? 'border-red-500 focus:ring-red-500' : ''}
-          `}
-        />
-        
-        {error && (
-          <div className="flex items-center space-x-1 text-red-500 text-xs">
-            <AlertCircle className="h-3 w-3" />
-            <span>{error}</span>
-          </div>
-        )}
-        
-        {helpText && !error && (
-          <p className="text-xs text-muted-foreground">{helpText}</p>
-        )}
-      </div>
-    );
-  }
-);
-
-FormTextArea.displayName = 'FormTextArea';
-
-// ==========================================
-// COMPONENTE DE SEÇÃO DE FORMULÁRIO
-// ==========================================
-
-export interface FormSectionProps {
-  title: string;
-  description?: string;
-  children: React.ReactNode;
-  collapsible?: boolean;
-  defaultCollapsed?: boolean;
-  className?: string;
-}
-
-export const FormSection: React.FC<FormSectionProps> = ({
-  title,
-  description,
-  children,
-  collapsible = false,
-  defaultCollapsed = false,
-  className,
-}) => {
-  const [isCollapsed, setIsCollapsed] = useState(defaultCollapsed);
-
-  return (
-    <Card className={className}>
-      <CardHeader className={collapsible ? 'cursor-pointer' : ''} 
-      onClick={collapsible ? () => setIsCollapsed(!isCollapsed) : undefined}
-      >
-        <CardTitle className="flex items-center justify-between">
-          <div>
-            <h3 className="text-lg font-semibold">{title}</h3>
-            {description && (
-              <p className="text-sm text-muted-foreground mt-1">{description}</p>
-            )}
-          </div>
-          {collapsible && (
-            <Button variant="ghost" size="sm">
-              {isCollapsed ? <Plus className="h-4 w-4" /> : <X className="h-4 w-4" />}
-            </Button>
-          )}
-        </CardTitle>
-      </CardHeader>
-      
-      {(!collapsible || !isCollapsed) && (
-        <CardContent className="space-y-4">
-          {children}
-        </CardContent>
-      )}
-    </Card>
-  );
-};
-
-// ==========================================
-// COMPONENTE DE LISTA DINÂMICA
-// ==========================================
-
-export interface DynamicListItem {
-  id: string;
-  [key: string]: any;
-}
-
-export interface DynamicListProps<T extends DynamicListItem> {
-  items: T[];
-  onAdd: () => void;
-  onRemove: (id: string) => void;
-  onUpdate: (id: string, data: Partial<T>) => void;
-  renderItem: (item: T, onUpdate: (data: Partial<T>) => void, onRemove: () => void) => React.ReactNode;
-  addButtonText?: string;
-  emptyText?: string;
-  title?: string;
-  maxItems?: number;
-}
-
-export function DynamicList<T extends DynamicListItem>({
-  items,
-  onAdd,
-  onRemove,
-  onUpdate,
-  renderItem,
-  addButtonText = "Adicionar Item",
-  emptyText = "Nenhum item adicionado",
-  title,
-  maxItems,
-}: DynamicListProps<T>) {
-  const canAddMore = !maxItems || items.length < maxItems;
-
-  return (
-    <div className="space-y-4">
-      {title && (
-        <div className="flex items-center justify-between">
-          <h4 className="text-sm font-medium">{title}</h4>
-          {canAddMore && (
-            <Button 
-              type="button" 
-              variant="outline" 
-              size="sm" 
-              onClick={onAdd}
-              className="h-8"
-            >
-              <Plus className="h-3 w-3 mr-1" />
-              {addButtonText}
-            </Button>
-          )}
-        </div>
-      )}
-
-      {items.length === 0 ? (
-        <div className="text-center py-8 text-muted-foreground border-2 border-dashed border-border rounded-lg">
-          <p className="text-sm">{emptyText}</p>
-          {canAddMore && (
-            <Button 
-              type="button" 
-              variant="ghost" 
-              size="sm" 
-              onClick={onAdd}
-              className="mt-2"
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              {addButtonText}
-            </Button>
-          )}
-        </div>
-      ) : (
-        <div className="space-y-3">
-          {items.map((item) => (
-            <div 
-              key={item.id} 
-              className="p-4 border border-border rounded-lg bg-card relative"
-            >
-              <button
-                type="button"
-                onClick={() => onRemove(item.id)}
-                className="absolute top-2 right-2 p-1 text-muted-foreground hover:text-destructive"
-              >
-                <Trash2 className="h-4 w-4" />
-              </button>
-              
-              {renderItem(
-                item,
-                (data) => onUpdate(item.id, data),
-                () => onRemove(item.id)
-              )}
-            </div>
-          ))}
-          
-          {canAddMore && (
-            <Button 
-              type="button" 
-              variant="outline" 
-              size="sm" 
-              onClick={onAdd}
-              className="w-full"
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              {addButtonText}
-            </Button>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ==========================================
-// COMPONENTE DE BUSCA
-// ==========================================
-
-export interface SearchInputProps {
+interface SearchInputProps {
   value: string;
   onChange: (value: string) => void;
-  onSearch?: (value: string) => void;
   placeholder?: string;
-  loading?: boolean;
-  disabled?: boolean;
   className?: string;
+  onClear?: () => void;
 }
 
-export const SearchInput: React.FC<SearchInputProps> = ({
-  value,
-  onChange,
-  onSearch,
-  placeholder = "Buscar...",
-  loading = false,
-  disabled = false,
-  className,
-}) => {
-  const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && onSearch) {
-      e.preventDefault();
-      onSearch(value);
-    }
-  };
+interface StatusBadgeProps {
+  status: 'ATIVO' | 'INATIVO' | 'PENDENTE' | 'BLOQUEADO';
+  size?: 'sm' | 'md' | 'lg';
+}
 
-  return (
-    <div className={`relative ${className || ''}`}>
-      <div className="absolute left-3 top-1/2 transform -translate-y-1/2">
-        {loading ? (
-          <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-        ) : (
-          <Search className="h-4 w-4 text-muted-foreground" />
+interface DatePickerProps {
+  label?: string;
+  value: string;
+  onChange: (value: string) => void;
+  error?: string;
+  min?: string;
+  max?: string;
+  required?: boolean;
+}
+
+interface PasswordInputProps extends Omit<InputProps, 'type'> {
+  showStrength?: boolean;
+}
+
+interface AddressFieldsProps {
+  endereco: {
+    logradouro?: string;
+    numero?: string;
+    complemento?: string;
+    bairro?: string;
+    cidade?: string;
+    estado?: string;
+    cep?: string;
+  };
+  onChange: (field: string, value: string) => void;
+  errors?: Record<string, string>;
+  disabled?: boolean;
+}
+
+// ===================================
+// COMPONENTES BÁSICOS
+// ===================================
+
+export const FormField: React.FC<FormFieldProps> = ({ 
+  label, 
+  error, 
+  required, 
+  children, 
+  className 
+}) => (
+  <div className={`space-y-2 ${className || ''}`}>
+    <label className="text-sm font-medium text-foreground">
+      {label}
+      {required && <span className="text-red-500 ml-1">*</span>}
+    </label>
+    {children}
+    {error && (
+      <p className="text-red-600 text-xs flex items-center space-x-1">
+        <AlertCircle className="h-3 w-3" />
+        <span>{error}</span>
+      </p>
+    )}
+  </div>
+);
+
+export const Input = forwardRef<HTMLInputElement, InputProps>(
+  ({ label, error, leftIcon, rightIcon, className, ...props }, ref) => (
+    <FormField label={label} error={error} required={props.required}>
+      <div className="relative">
+        {leftIcon && (
+          <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground">
+            {leftIcon}
+          </div>
+        )}
+        <input
+          ref={ref}
+          className={`
+            w-full px-3 py-2 border border-input bg-background text-sm 
+            focus:outline-none focus:ring-2 focus:ring-ring rounded-md
+            disabled:opacity-50 disabled:cursor-not-allowed
+            ${leftIcon ? 'pl-10' : ''}
+            ${rightIcon ? 'pr-10' : ''}
+            ${error ? 'border-red-500' : ''}
+            ${className || ''}
+          `}
+          {...props}
+        />
+        {rightIcon && (
+          <div className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground">
+            {rightIcon}
+          </div>
         )}
       </div>
-      
+    </FormField>
+  )
+);
+
+Input.displayName = 'Input';
+
+export const TextArea = forwardRef<HTMLTextAreaElement, TextAreaProps>(
+  ({ label, error, className, ...props }, ref) => (
+    <FormField label={label} error={error} required={props.required}>
+      <textarea
+        ref={ref}
+        className={`
+          w-full px-3 py-2 border border-input bg-background text-sm 
+          focus:outline-none focus:ring-2 focus:ring-ring rounded-md
+          disabled:opacity-50 disabled:cursor-not-allowed
+          ${error ? 'border-red-500' : ''}
+          ${className || ''}
+        `}
+        {...props}
+      />
+    </FormField>
+  )
+);
+
+TextArea.displayName = 'TextArea';
+
+export const Select = forwardRef<HTMLSelectElement, SelectProps>(
+  ({ label, error, options, placeholder, className, ...props }, ref) => (
+    <FormField label={label} error={error} required={props.required}>
+      <select
+        ref={ref}
+        className={`
+          w-full px-3 py-2 border border-input bg-background text-sm 
+          focus:outline-none focus:ring-2 focus:ring-ring rounded-md
+          disabled:opacity-50 disabled:cursor-not-allowed
+          ${error ? 'border-red-500' : ''}
+          ${className || ''}
+        `}
+        {...props}
+      >
+        {placeholder && (
+          <option value="" disabled>
+            {placeholder}
+          </option>
+        )}
+        {options.map((option) => (
+          <option 
+            key={option.value} 
+            value={option.value}
+            disabled={option.disabled}
+          >
+            {option.label}
+          </option>
+        ))}
+      </select>
+    </FormField>
+  )
+);
+
+Select.displayName = 'Select';
+
+// ===================================
+// COMPONENTES ESPECIALIZADOS
+// ===================================
+
+export const SearchInput: React.FC<SearchInputProps> = ({ 
+  value, 
+  onChange, 
+  placeholder = "Buscar...", 
+  className,
+  onClear 
+}) => {
+  return (
+    <div className={`relative ${className || ''}`}>
+      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
       <input
         type="text"
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        onKeyPress={handleKeyPress}
+        className="w-full pl-10 pr-10 py-2 border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring rounded-md"
         placeholder={placeholder}
-        disabled={disabled || loading}
-        className="w-full pl-10 pr-4 py-2 border border-input bg-background text-foreground text-sm rounded-md focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed"
       />
-      
-      {value && !loading && (
+      {value && onClear && (
         <button
           type="button"
-          onClick={() => onChange('')}
+          onClick={onClear}
           className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-foreground"
         >
           <X className="h-4 w-4" />
@@ -465,247 +227,414 @@ export const SearchInput: React.FC<SearchInputProps> = ({
   );
 };
 
-// ==========================================
-// COMPONENTE DE STATUS
-// ==========================================
-
-export interface StatusBadgeProps {
-  status: 'ATIVO' | 'INATIVO' | 'PENDENTE' | 'BLOQUEADO' | 'SUSPENSO' | string;
-  variant?: 'default' | 'outline';
-  size?: 'sm' | 'md';
-}
-
-export const StatusBadge: React.FC<StatusBadgeProps> = ({
-  status,
-  variant = 'default',
-  size = 'sm',
-}) => {
-  const getStatusStyle = (status: string) => {
-    const styles: Record<string, string> = {
-      'ATIVO': 'bg-green-100 text-green-800 border-green-200 dark:bg-green-900 dark:text-green-200',
-      'INATIVO': 'bg-gray-100 text-gray-800 border-gray-200 dark:bg-gray-800 dark:text-gray-200',
-      'PENDENTE': 'bg-yellow-100 text-yellow-800 border-yellow-200 dark:bg-yellow-900 dark:text-yellow-200',
-      'BLOQUEADO': 'bg-red-100 text-red-800 border-red-200 dark:bg-red-900 dark:text-red-200',
-      'SUSPENSO': 'bg-orange-100 text-orange-800 border-orange-200 dark:bg-orange-900 dark:text-orange-200',
-    };
-    
-    return styles[status] || styles['INATIVO'];
-  };
-
+export const StatusBadge: React.FC<StatusBadgeProps> = ({ status, size = 'md' }) => {
   const sizeClasses = {
     sm: 'px-2 py-1 text-xs',
     md: 'px-3 py-1 text-sm',
+    lg: 'px-4 py-2 text-base'
   };
 
-  const variantClasses = {
-    default: getStatusStyle(status),
-    outline: `border-2 bg-transparent ${getStatusStyle(status)}`,
+  const statusConfig = {
+    ATIVO: {
+      icon: CheckCircle,
+      className: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+    },
+    INATIVO: {
+      icon: X,
+      className: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
+    },
+    PENDENTE: {
+      icon: Clock,
+      className: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'
+    },
+    BLOQUEADO: {
+      icon: AlertCircle,
+      className: 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200'
+    }
   };
+
+  const config = statusConfig[status];
+  const Icon = config.icon;
 
   return (
-    <span className={`
-      inline-flex items-center font-medium rounded-full
-      ${sizeClasses[size]}
-      ${variantClasses[variant]}
-    `}>
+    <span className={`inline-flex items-center font-medium rounded-full ${sizeClasses[size]} ${config.className}`}>
+      <Icon className="h-3 w-3 mr-1" />
       {status}
     </span>
   );
 };
 
-// ==========================================
-// COMPONENTE DE LOADING
-// ==========================================
+export const DatePicker: React.FC<DatePickerProps> = ({
+  label,
+  value,
+  onChange,
+  error,
+  min,
+  max,
+  required
+}) => (
+  <FormField label={label} error={error} required={required}>
+    <div className="relative">
+      <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
+      <input
+        type="date"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        min={min}
+        max={max}
+        className={`
+          w-full pl-10 pr-3 py-2 border border-input bg-background text-sm 
+          focus:outline-none focus:ring-2 focus:ring-ring rounded-md
+          ${error ? 'border-red-500' : ''}
+        `}
+      />
+    </div>
+  </FormField>
+);
 
-export interface LoadingSpinnerProps {
-  size?: 'sm' | 'md' | 'lg';
-  text?: string;
-  className?: string;
-}
-
-export const LoadingSpinner: React.FC<LoadingSpinnerProps> = ({
-  size = 'md',
-  text,
-  className,
+export const PasswordInput: React.FC<PasswordInputProps> = ({
+  label,
+  error,
+  showStrength,
+  value,
+  onChange,
+  ...props
 }) => {
-  const sizeClasses = {
-    sm: 'h-4 w-4',
-    md: 'h-6 w-6',
-    lg: 'h-8 w-8',
+  const [showPassword, setShowPassword] = useState(false);
+
+  const getPasswordStrength = (password: string): { score: number; label: string; color: string } => {
+    let score = 0;
+    if (password.length >= 8) score++;
+    if (/[a-z]/.test(password)) score++;
+    if (/[A-Z]/.test(password)) score++;
+    if (/[0-9]/.test(password)) score++;
+    if (/[^a-zA-Z0-9]/.test(password)) score++;
+
+    const strengthMap = {
+      0: { label: 'Muito fraca', color: 'bg-red-500' },
+      1: { label: 'Fraca', color: 'bg-red-400' },
+      2: { label: 'Regular', color: 'bg-yellow-500' },
+      3: { label: 'Boa', color: 'bg-yellow-400' },
+      4: { label: 'Forte', color: 'bg-green-500' },
+      5: { label: 'Muito forte', color: 'bg-green-600' }
+    };
+
+    return { score, ...strengthMap[score as keyof typeof strengthMap] };
+  };
+
+  const strength = showStrength && value ? getPasswordStrength(value as string) : null;
+
+  return (
+    <FormField label={label} error={error} required={props.required}>
+      <div className="relative">
+        <input
+          type={showPassword ? 'text' : 'password'}
+          value={value}
+          onChange={onChange}
+          className={`
+            w-full px-3 py-2 pr-10 border border-input bg-background text-sm 
+            focus:outline-none focus:ring-2 focus:ring-ring rounded-md
+            ${error ? 'border-red-500' : ''}
+          `}
+          {...props}
+        />
+        <button
+          type="button"
+          onClick={() => setShowPassword(!showPassword)}
+          className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-foreground"
+        >
+          {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+        </button>
+      </div>
+      
+      {strength && (
+        <div className="mt-2">
+          <div className="flex items-center space-x-2">
+            <div className="flex-1 bg-gray-200 rounded-full h-2">
+              <div 
+                className={`h-2 rounded-full transition-all duration-300 ${strength.color}`}
+                style={{ width: `${(strength.score / 5) * 100}%` }}
+              />
+            </div>
+            <span className="text-xs text-muted-foreground">{strength.label}</span>
+          </div>
+        </div>
+      )}
+    </FormField>
+  );
+};
+
+export const AddressFields: React.FC<AddressFieldsProps> = ({
+  endereco,
+  onChange,
+  errors = {},
+  disabled = false
+}) => {
+  const estadosBrasil = [
+    { value: 'AC', label: 'Acre' },
+    { value: 'AL', label: 'Alagoas' },
+    { value: 'AP', label: 'Amapá' },
+    { value: 'AM', label: 'Amazonas' },
+    { value: 'BA', label: 'Bahia' },
+    { value: 'CE', label: 'Ceará' },
+    { value: 'DF', label: 'Distrito Federal' },
+    { value: 'ES', label: 'Espírito Santo' },
+    { value: 'GO', label: 'Goiás' },
+    { value: 'MA', label: 'Maranhão' },
+    { value: 'MT', label: 'Mato Grosso' },
+    { value: 'MS', label: 'Mato Grosso do Sul' },
+    { value: 'MG', label: 'Minas Gerais' },
+    { value: 'PA', label: 'Pará' },
+    { value: 'PB', label: 'Paraíba' },
+    { value: 'PR', label: 'Paraná' },
+    { value: 'PE', label: 'Pernambuco' },
+    { value: 'PI', label: 'Piauí' },
+    { value: 'RJ', label: 'Rio de Janeiro' },
+    { value: 'RN', label: 'Rio Grande do Norte' },
+    { value: 'RS', label: 'Rio Grande do Sul' },
+    { value: 'RO', label: 'Rondônia' },
+    { value: 'RR', label: 'Roraima' },
+    { value: 'SC', label: 'Santa Catarina' },
+    { value: 'SP', label: 'São Paulo' },
+    { value: 'SE', label: 'Sergipe' },
+    { value: 'TO', label: 'Tocantins' }
+  ];
+
+  const formatCEP = (value: string) => {
+    const numbers = value.replace(/\D/g, '');
+    return numbers.replace(/(\d{5})(\d{3})/, '$1-$2');
   };
 
   return (
-    <div className={`flex items-center justify-center space-x-2 ${className || ''}`}>
-      <Loader2 className={`animate-spin text-primary ${sizeClasses[size]}`} />
-      {text && <span className="text-sm text-muted-foreground">{text}</span>}
+    <div className="space-y-4">
+      <h4 className="font-medium flex items-center space-x-2">
+        <MapPin className="h-4 w-4" />
+        <span>Endereço</span>
+      </h4>
+      
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="md:col-span-2">
+          <Input
+            label="Logradouro"
+            value={endereco.logradouro || ''}
+            onChange={(e) => onChange('logradouro', e.target.value)}
+            error={errors.logradouro}
+            placeholder="Rua, Avenida, etc."
+            disabled={disabled}
+          />
+        </div>
+
+        <div>
+          <Input
+            label="Número"
+            value={endereco.numero || ''}
+            onChange={(e) => onChange('numero', e.target.value)}
+            error={errors.numero}
+            placeholder="123"
+            disabled={disabled}
+          />
+        </div>
+
+        <div>
+          <Input
+            label="Complemento"
+            value={endereco.complemento || ''}
+            onChange={(e) => onChange('complemento', e.target.value)}
+            error={errors.complemento}
+            placeholder="Apto, Bloco, etc."
+            disabled={disabled}
+          />
+        </div>
+
+        <div>
+          <Input
+            label="Bairro"
+            value={endereco.bairro || ''}
+            onChange={(e) => onChange('bairro', e.target.value)}
+            error={errors.bairro}
+            placeholder="Centro"
+            disabled={disabled}
+          />
+        </div>
+
+        <div>
+          <Input
+            label="Cidade"
+            value={endereco.cidade || ''}
+            onChange={(e) => onChange('cidade', e.target.value)}
+            error={errors.cidade}
+            placeholder="São Paulo"
+            disabled={disabled}
+          />
+        </div>
+
+        <div>
+          <Select
+            label="Estado"
+            value={endereco.estado || ''}
+            onChange={(e) => onChange('estado', e.target.value)}
+            error={errors.estado}
+            options={estadosBrasil}
+            placeholder="Selecione o estado"
+            disabled={disabled}
+          />
+        </div>
+
+        <div>
+          <Input
+            label="CEP"
+            value={endereco.cep ? formatCEP(endereco.cep) : ''}
+            onChange={(e) => onChange('cep', e.target.value.replace(/\D/g, ''))}
+            error={errors.cep}
+            placeholder="00000-000"
+            maxLength={9}
+            disabled={disabled}
+          />
+        </div>
+      </div>
     </div>
   );
 };
 
-// ==========================================
-// COMPONENTE DE ALERTA/NOTIFICAÇÃO
-// ==========================================
+// ===================================
+// COMPONENTES DE VALIDAÇÃO
+// ===================================
 
-export interface AlertProps {
-  type: 'success' | 'error' | 'warning' | 'info';
-  title?: string;
-  message: string;
-  onClose?: () => void;
+export const RequiredFieldsIndicator: React.FC<{ className?: string }> = ({ className }) => (
+  <div className={`text-xs text-muted-foreground ${className || ''}`}>
+    <span className="text-red-500">*</span> Campos obrigatórios
+  </div>
+);
+
+export const FormSection: React.FC<{
+  title: string;
+  description?: string;
+  icon?: React.ReactNode;
+  children: React.ReactNode;
   className?: string;
-}
-
-export const Alert: React.FC<AlertProps> = ({
-  type,
-  title,
-  message,
-  onClose,
-  className,
-}) => {
-  const getTypeStyle = (type: string) => {
-    const styles: Record<string, { bg: string; border: string; text: string; icon: React.ReactNode }> = {
-      success: {
-        bg: 'bg-green-50 dark:bg-green-900/20',
-        border: 'border-green-200 dark:border-green-800',
-        text: 'text-green-800 dark:text-green-200',
-        icon: <CheckCircle className="h-4 w-4" />,
-      },
-      error: {
-        bg: 'bg-red-50 dark:bg-red-900/20',
-        border: 'border-red-200 dark:border-red-800',
-        text: 'text-red-800 dark:text-red-200',
-        icon: <AlertCircle className="h-4 w-4" />,
-      },
-      warning: {
-        bg: 'bg-yellow-50 dark:bg-yellow-900/20',
-        border: 'border-yellow-200 dark:border-yellow-800',
-        text: 'text-yellow-800 dark:text-yellow-200',
-        icon: <AlertCircle className="h-4 w-4" />,
-      },
-      info: {
-        bg: 'bg-blue-50 dark:bg-blue-900/20',
-        border: 'border-blue-200 dark:border-blue-800',
-        text: 'text-blue-800 dark:text-blue-200',
-        icon: <AlertCircle className="h-4 w-4" />,
-      },
-    };
-    
-    return styles[type] || styles.info;
-  };
-
-  const style = getTypeStyle(type);
-
-  return (
-    <div className={`
-      p-4 border rounded-lg
-      ${style.bg} ${style.border}
-      ${className || ''}
-    `}>
-      <div className="flex items-start space-x-3">
-        <div className={style.text}>
-          {style.icon}
-        </div>
-        
-        <div className="flex-1">
-          {title && (
-            <h4 className={`font-medium ${style.text}`}>
-              {title}
-            </h4>
-          )}
-          <p className={`text-sm ${style.text} ${title ? 'mt-1' : ''}`}>
-            {message}
-          </p>
-        </div>
-        
-        {onClose && (
-          <button
-            onClick={onClose}
-            className={`${style.text} hover:opacity-75`}
-          >
-            <X className="h-4 w-4" />
-          </button>
+}> = ({ title, description, icon, children, className }) => (
+  <div className={`space-y-4 ${className || ''}`}>
+    <div className="flex items-center space-x-2">
+      {icon}
+      <div>
+        <h3 className="text-lg font-medium">{title}</h3>
+        {description && (
+          <p className="text-sm text-muted-foreground">{description}</p>
         )}
       </div>
     </div>
-  );
-};
+    {children}
+  </div>
+);
 
-// ==========================================
-// COMPONENTE DE CONFIRMAÇÃO
-// ==========================================
+// ===================================
+// COMPONENTES DE BUSCA AVANÇADA
+// ===================================
 
-export interface ConfirmDialogProps {
-  isOpen: boolean;
-  onClose: () => void;
-  onConfirm: () => void;
-  title: string;
-  message: string;
-  confirmText?: string;
-  cancelText?: string;
-  variant?: 'danger' | 'warning' | 'info';
-  loading?: boolean;
-}
+export const PersonSearchField: React.FC<{
+  onPersonSelect: (person: any) => void;
+  placeholder?: string;
+  disabled?: boolean;
+}> = ({ onPersonSelect, placeholder = "Buscar pessoa por nome ou CPF", disabled }) => {
+  const [searchTerm, setSearchTerm] = useState('');
+  const [results, setResults] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [showResults, setShowResults] = useState(false);
 
-export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
-  isOpen,
-  onClose,
-  onConfirm,
-  title,
-  message,
-  confirmText = 'Confirmar',
-  cancelText = 'Cancelar',
-  variant = 'danger',
-  loading = false,
-}) => {
-  if (!isOpen) return null;
+  // Simular busca de pessoas (substituir pela implementação real)
+  const searchPeople = async (term: string) => {
+    if (term.length < 3) {
+      setResults([]);
+      setShowResults(false);
+      return;
+    }
 
-  const variantStyles = {
-    danger: 'text-red-600 hover:bg-red-50',
-    warning: 'text-yellow-600 hover:bg-yellow-50',
-    info: 'text-blue-600 hover:bg-blue-50',
+    setLoading(true);
+    try {
+      // Aqui você faria a chamada real para a API
+      // const response = await pessoaService.listar({ search: term, limit: 10 });
+      // setResults(response.data);
+      
+      // Mock de resultados por enquanto
+      setResults([
+        { id: '1', nome: 'João Silva', cpf: '123.456.789-00', email: 'joao@email.com' },
+        { id: '2', nome: 'Maria Santos', cpf: '987.654.321-00', email: 'maria@email.com' }
+      ]);
+      setShowResults(true);
+    } catch (error) {
+      console.error('Erro ao buscar pessoas:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSearchChange = (value: string) => {
+    setSearchTerm(value);
+    searchPeople(value);
+  };
+
+  const selectPerson = (person: any) => {
+    onPersonSelect(person);
+    setSearchTerm(person.nome);
+    setShowResults(false);
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="fixed inset-0 bg-black/50" onClick={onClose} />
+    <div className="relative">
+      <SearchInput
+        value={searchTerm}
+        onChange={handleSearchChange}
+        placeholder={placeholder}
+        onClear={() => {
+          setSearchTerm('');
+          setResults([]);
+          setShowResults(false);
+        }}
+      />
       
-      <div className="relative bg-background border border-border rounded-lg shadow-lg p-6 max-w-md w-full mx-4">
-        <div className="flex items-start space-x-3">
-          <div className={`p-2 rounded-full ${
-            variant === 'danger' ? 'bg-red-100 text-red-600' :
-            variant === 'warning' ? 'bg-yellow-100 text-yellow-600' :
-            'bg-blue-100 text-blue-600'
-          }`}>
-            <AlertCircle className="h-5 w-5" />
-          </div>
-          
-          <div className="flex-1">
-            <h3 className="text-lg font-semibold text-foreground">
-              {title}
-            </h3>
-            <p className="text-sm text-muted-foreground mt-2">
-              {message}
-            </p>
-          </div>
+      {loading && (
+        <div className="absolute right-10 top-1/2 transform -translate-y-1/2">
+          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
         </div>
-        
-        <div className="flex justify-end space-x-3 mt-6">
-          <Button 
-            variant="outline" 
-            onClick={onClose}
-            disabled={loading}
-          >
-            {cancelText}
-          </Button>
-          <Button 
-            onClick={onConfirm}
-            disabled={loading}
-            className={variantStyles[variant]}
-          >
-            {loading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-            {confirmText}
-          </Button>
+      )}
+
+      {showResults && results.length > 0 && (
+        <div className="absolute z-10 w-full mt-1 bg-background border border-input rounded-md shadow-lg max-h-60 overflow-y-auto">
+          {results.map((person) => (
+            <button
+              key={person.id}
+              onClick={() => selectPerson(person)}
+              className="w-full p-3 text-left hover:bg-accent border-b border-border last:border-0 flex items-center justify-between"
+            >
+              <div>
+                <p className="font-medium text-sm">{person.nome}</p>
+                <p className="text-xs text-muted-foreground">CPF: {person.cpf}</p>
+              </div>
+              {person.email && (
+                <div className="text-right">
+                  <p className="text-xs text-muted-foreground">{person.email}</p>
+                </div>
+              )}
+            </button>
+          ))}
         </div>
-      </div>
+      )}
     </div>
   );
+};
+
+// ===================================
+// EXPORTAÇÕES
+// ===================================
+
+export type {
+  FormFieldProps,
+  InputProps,
+  TextAreaProps,
+  SelectProps,
+  SearchInputProps,
+  StatusBadgeProps,
+  DatePickerProps,
+  PasswordInputProps,
+  AddressFieldsProps
 };
