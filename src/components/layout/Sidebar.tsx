@@ -40,8 +40,14 @@ const menuItems: MenuItem[] = [
   {
     title: 'Pessoas',
     icon: Users,
-    permissions: ['VISUALIZAR_PACIENTE', 'CADASTRAR_PACIENTE'],
+    permissions: ['VISUALIZAR_PACIENTE', 'CADASTRAR_PACIENTE', 'GERENCIAR_USUARIOS'],
     children: [
+      { 
+        title: 'Lista de Pessoas', 
+        href: '/dashboard/people', 
+        icon: Users,
+        permissions: ['VISUALIZAR_PACIENTE', 'CADASTRAR_PACIENTE']
+      },
       { 
         title: 'Pacientes', 
         href: '/dashboard/patients', 

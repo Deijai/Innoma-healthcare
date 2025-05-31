@@ -1,11 +1,11 @@
-// src/app/dashboard/users/new/page.tsx
+// src/app/dashboard/users/new/page.tsx (ATUALIZADO)
 'use client';
 
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { useAuth } from '@/contexts/AuthContext';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import {
   ArrowLeft,
@@ -23,28 +23,12 @@ import {
   Loader2,
   UserPlus,
   Search,
-  XCircle
+  XCircle,
+  Plus
 } from 'lucide-react';
-
-// Interfaces
-interface Pessoa {
-  id?: string;
-  nome: string;
-  data_nascimento: string;
-  sexo: 'M' | 'F' | 'O';
-  cpf: string;
-  telefone?: string;
-  email?: string;
-  endereco?: {
-    logradouro?: string;
-    numero?: string;
-    complemento?: string;
-    bairro?: string;
-    cidade?: string;
-    estado?: string;
-    cep?: string;
-  };
-}
+import { pessoaService, usuarioService, Pessoa } from '@/lib/api-services';
+import { formatCPF } from '@/lib/utils';
+import { useToast } from '@/components/ui/Toast';
 
 interface UsuarioFormData {
   pessoa_id?: string;
@@ -58,7 +42,23 @@ interface UsuarioFormData {
   
   // Dados da pessoa (quando não vincular a existente)
   criar_pessoa: boolean;
-  pessoa_dados?: Pessoa;
+  pessoa_dados?: {
+    nome: string;
+    data_nascimento: string;
+    sexo: 'M' | 'F' | 'O';
+    cpf: string;
+    telefone?: string;
+    email?: string;
+    endereco?: {
+      logradouro?: string;
+      numero?: string;
+      complemento?: string;
+      bairro?: string;
+      cidade?: string;
+      estado?: string;
+      cep?: string;
+    };
+  };
 }
 
 interface FormErrors {
@@ -68,10 +68,14 @@ interface FormErrors {
 export default function NewUserPage() {
   const { user: currentUser } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const toast = useToast();
   
-  // Estados principais
+  // Verificar se há pessoa pré-selecionada via URL
+  const preSelectedPersonId = searchParams?.get('pessoa_id');
+  
   const [formData, setFormData] = useState<UsuarioFormData>({
-    pessoa_id: '',
+    pessoa_id: preSelectedPersonId || '',
     usuario: '',
     senha: '',
     confirmar_senha: '',
@@ -79,7 +83,7 @@ export default function NewUserPage() {
     ativo: true,
     unidades_acesso: [],
     permissoes: [],
-    criar_pessoa: true,
+    criar_pessoa: !preSelectedPersonId, // Se há pessoa pré-selecionada, não criar nova
     pessoa_dados: {
       nome: '',
       data_nascimento: '',
@@ -109,6 +113,7 @@ export default function NewUserPage() {
   const [pessoasEncontradas, setPessoasEncontradas] = useState<Pessoa[]>([]);
   const [searchTermPessoa, setSearchTermPessoa] = useState('');
   const [showPessoaSearch, setShowPessoaSearch] = useState(false);
+  const [pessoaSelecionada, setPessoaSelecionada] = useState<Pessoa | null>(null);
 
   // Estados para permissões
   const [availablePermissions] = useState([
@@ -120,6 +125,50 @@ export default function NewUserPage() {
     'VISUALIZAR_FINANCEIRO', 'GERENCIAR_ESTOQUE'
   ]);
 
+  // Carregar pessoa pré-selecionada
+  useEffect(() => {
+    if (preSelectedPersonId) {
+      loadPreSelectedPerson();
+    }
+  }, [preSelectedPersonId]);
+
+  const loadPreSelectedPerson = async () => {
+    if (!preSelectedPersonId) return;
+
+    try {
+      const pessoa = await pessoaService.buscarPorId(preSelectedPersonId);
+      setPessoaSelecionada(pessoa);
+      setFormData(prev => ({
+        ...prev,
+        pessoa_id: pessoa.id,
+        criar_pessoa: false,
+        pessoa_dados: {
+          nome: pessoa.nome,
+          data_nascimento: pessoa.data_nascimento.split('T')[0],
+          sexo: pessoa.sexo,
+          cpf: pessoa.cpf,
+          telefone: pessoa.telefone || '',
+          email: pessoa.email || '',
+          endereco: pessoa.endereco || prev.pessoa_dados?.endereco
+        }
+      }));
+      
+      // Sugerir username baseado no nome
+      const username = pessoa.nome.toLowerCase()
+        .replace(/\s+/g, '.')
+        .replace(/[^a-z0-9.-]/g, '');
+      
+      setFormData(prev => ({
+        ...prev,
+        usuario: username
+      }));
+      
+    } catch (error) {
+      console.error('Erro ao carregar pessoa:', error);
+      toast.error('Erro ao carregar pessoa selecionada');
+    }
+  };
+
   // Buscar pessoas existentes
   const searchPessoas = async (termo: string) => {
     if (!termo || termo.length < 3) return;
@@ -127,18 +176,13 @@ export default function NewUserPage() {
     try {
       setSearchingPessoa(true);
       
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/pessoas?search=${encodeURIComponent(termo)}&limit=10`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
-          'X-Subdomain': localStorage.getItem('selected_tenant') || '',
-          'Content-Type': 'application/json'
-        }
+      const response = await pessoaService.listar({
+        search: termo,
+        limit: 10,
+        status: 'ATIVO'
       });
-
-      if (response.ok) {
-        const data = await response.json();
-        setPessoasEncontradas(data.data || []);
-      }
+      
+      setPessoasEncontradas(response.data || []);
     } catch (error) {
       console.error('Erro ao buscar pessoas:', error);
     } finally {
@@ -252,31 +296,18 @@ export default function NewUserPage() {
         submitData.dadosPessoa = formData.pessoa_dados;
       }
 
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/usuarios`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
-          'X-Subdomain': localStorage.getItem('selected_tenant') || '',
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(submitData)
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Erro ao criar usuário');
-      }
-
-      const result = await response.json();
+      const result = await usuarioService.criar(submitData);
+      
+      toast.success('Usuário criado com sucesso!');
       
       // Redirecionar para visualização do usuário
       router.push(`/dashboard/users/${result.id}`);
 
     } catch (error) {
       console.error('Erro ao criar usuário:', error);
-      setErrors({ 
-        general: error instanceof Error ? error.message : 'Erro desconhecido ao criar usuário' 
-      });
+      const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido ao criar usuário';
+      setErrors({ general: errorMessage });
+      toast.error('Erro ao criar usuário', errorMessage);
     } finally {
       setLoading(false);
     }
@@ -334,14 +365,58 @@ export default function NewUserPage() {
   };
 
   const selectPessoa = (pessoa: Pessoa) => {
+    setPessoaSelecionada(pessoa);
     setFormData(prev => ({
       ...prev,
-      pessoa_id: pessoa.id!,
-      pessoa_dados: pessoa
+      pessoa_id: pessoa.id,
+      pessoa_dados: {
+        nome: pessoa.nome,
+        data_nascimento: pessoa.data_nascimento.split('T')[0],
+        sexo: pessoa.sexo,
+        cpf: pessoa.cpf,
+        telefone: pessoa.telefone || '',
+        email: pessoa.email || '',
+        endereco: pessoa.endereco || prev.pessoa_dados?.endereco
+      }
     }));
     setShowPessoaSearch(false);
     setSearchTermPessoa('');
     setPessoasEncontradas([]);
+    
+    // Sugerir username baseado no nome
+    const username = pessoa.nome.toLowerCase()
+      .replace(/\s+/g, '.')
+      .replace(/[^a-z0-9.-]/g, '');
+    
+    setFormData(prev => ({
+      ...prev,
+      usuario: username
+    }));
+  };
+
+  const clearSelectedPessoa = () => {
+    setPessoaSelecionada(null);
+    setFormData(prev => ({
+      ...prev,
+      pessoa_id: '',
+      pessoa_dados: {
+        nome: '',
+        data_nascimento: '',
+        sexo: 'M',
+        cpf: '',
+        telefone: '',
+        email: '',
+        endereco: {
+          logradouro: '',
+          numero: '',
+          complemento: '',
+          bairro: '',
+          cidade: '',
+          estado: '',
+          cep: ''
+        }
+      }
+    }));
   };
 
   // Formatação de CPF
@@ -353,14 +428,7 @@ export default function NewUserPage() {
   // Autocompletar permissões baseado no papel
   useEffect(() => {
     const permissoesPorPapel: Record<string, string[]> = {
-      'ADMIN': [
-        'CADASTRAR_PACIENTE', 'EDITAR_PACIENTE', 'VISUALIZAR_PACIENTE', 'DELETAR_PACIENTE',
-        'CADASTRAR_MEDICO', 'EDITAR_MEDICO', 'VISUALIZAR_MEDICO', 'DELETAR_MEDICO',
-        'AGENDAR_CONSULTA', 'CANCELAR_CONSULTA', 'REALIZAR_ATENDIMENTO', 'VISUALIZAR_AGENDA',
-        'PRESCREVER_MEDICAMENTO', 'SOLICITAR_EXAME', 'GERAR_RELATORIOS',
-        'GERENCIAR_USUARIOS', 'CONFIGURAR_SISTEMA', 'GERENCIAR_UNIDADES',
-        'VISUALIZAR_FINANCEIRO', 'GERENCIAR_ESTOQUE'
-      ],
+      'ADMIN': availablePermissions,
       'MEDICO': [
         'VISUALIZAR_PACIENTE', 'EDITAR_PACIENTE',
         'AGENDAR_CONSULTA', 'CANCELAR_CONSULTA', 'REALIZAR_ATENDIMENTO', 'VISUALIZAR_AGENDA',
@@ -408,7 +476,10 @@ export default function NewUserPage() {
           <div>
             <h1 className="text-3xl font-bold">Novo Usuário</h1>
             <p className="text-muted-foreground">
-              Crie um novo usuário do sistema
+              {pessoaSelecionada ? 
+                `Criando usuário para: ${pessoaSelecionada.nome}` :
+                'Crie um novo usuário do sistema'
+              }
             </p>
           </div>
         </div>
@@ -421,6 +492,36 @@ export default function NewUserPage() {
             <div className="flex items-center space-x-3 text-red-600">
               <AlertCircle className="h-5 w-5" />
               <span>{errors.general}</span>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Pessoa pré-selecionada */}
+      {pessoaSelecionada && (
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 bg-primary/20 rounded-lg flex items-center justify-center">
+                  <User className="h-5 w-5 text-primary" />
+                </div>
+                <div>
+                  <p className="font-medium text-sm">{pessoaSelecionada.nome}</p>
+                  <p className="text-xs text-muted-foreground">
+                    CPF: {formatCPF(pessoaSelecionada.cpf)}
+                  </p>
+                </div>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={clearSelectedPessoa}
+              >
+                <X className="h-4 w-4 mr-2" />
+                Trocar Pessoa
+              </Button>
             </div>
           </CardContent>
         </Card>
@@ -544,343 +645,224 @@ export default function NewUserPage() {
             </Card>
 
             {/* Dados da pessoa */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center justify-between">
-                  <div className="flex items-center space-x-2">
-                    <User className="h-5 w-5" />
-                    <span>Dados Pessoais</span>
-                  </div>
-                  
-                  <div className="flex items-center space-x-4">
-                    <label className="flex items-center space-x-2 text-sm">
-                      <input
-                        type="radio"
-                        name="pessoa_type"
-                        checked={formData.criar_pessoa}
-                        onChange={() => handleInputChange('criar_pessoa', true)}
-                      />
-                      <span>Criar nova pessoa</span>
-                    </label>
-                    <label className="flex items-center space-x-2 text-sm">
-                      <input
-                        type="radio"
-                        name="pessoa_type"
-                        checked={!formData.criar_pessoa}
-                        onChange={() => handleInputChange('criar_pessoa', false)}
-                      />
-                      <span>Vincular pessoa existente</span>
-                    </label>
-                  </div>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {!formData.criar_pessoa ? (
-                  // Busca de pessoa existente
-                  <div className="space-y-4">
-                    <div className="relative">
-                      <div className="relative">
-                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
-                        <input
-                          type="text"
-                          value={searchTermPessoa}
-                          onChange={(e) => {
-                            setSearchTermPessoa(e.target.value);
-                            setShowPessoaSearch(true);
-                          }}
-                          className="w-full pl-10 pr-4 py-2 border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring rounded-md"
-                          placeholder="Buscar por nome ou CPF..."
-                        />
-                      </div>
-                      
-                      {searchingPessoa && (
-                        <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        </div>
-                      )}
+            {!pessoaSelecionada && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center justify-between">
+                    <div className="flex items-center space-x-2">
+                      <User className="h-5 w-5" />
+                      <span>Selecionar Pessoa</span>
                     </div>
-
-                    {showPessoaSearch && pessoasEncontradas.length > 0 && (
-                      <Card>
-                        <CardContent className="p-0">
-                          <div className="max-h-60 overflow-y-auto">
-                            {pessoasEncontradas.map((pessoa) => (
-                              <button
-                                key={pessoa.id}
-                                type="button"
-                                onClick={() => selectPessoa(pessoa)}
-                                className="w-full p-4 text-left hover:bg-accent border-b border-border last:border-0"
-                              >
-                                <div className="flex items-center justify-between">
-                                  <div>
-                                    <p className="font-medium">{pessoa.nome}</p>
-                                    <p className="text-sm text-muted-foreground">
-                                      CPF: {formatCPF(pessoa.cpf)}
-                                    </p>
-                                  </div>
-                                  <div className="text-right text-sm text-muted-foreground">
-                                    {pessoa.email && <p>{pessoa.email}</p>}
-                                    {pessoa.telefone && <p>{pessoa.telefone}</p>}
-                                  </div>
-                                </div>
-                              </button>
-                            ))}
-                          </div>
-                        </CardContent>
-                      </Card>
-                    )}
-
-                    {formData.pessoa_id && formData.pessoa_dados && (
-                      <Card>
-                        <CardContent className="p-4">
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <h4 className="font-medium">{formData.pessoa_dados.nome}</h4>
-                              <p className="text-sm text-muted-foreground">
-                                CPF: {formatCPF(formData.pessoa_dados.cpf)}
-                              </p>
-                            </div>
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              onClick={() => {
-                                handleInputChange('pessoa_id', '');
-                                handleInputChange('pessoa_dados', {
-                                  nome: '', data_nascimento: '', sexo: 'M', cpf: '', telefone: '', email: '', endereco: {}
-                                });
-                              }}
-                            >
-                              <X className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    )}
-
-                    {errors.pessoa_id && (
-                      <p className="text-red-600 text-xs">{errors.pessoa_id}</p>
-                    )}
-                  </div>
-                ) : (
-                  // Formulário de pessoa
-                  <div className="space-y-4">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <label className="text-sm font-medium mb-2 block">
-                          Nome completo *
-                        </label>
+                    
+                    <div className="flex items-center space-x-4">
+                      <label className="flex items-center space-x-2 text-sm">
                         <input
-                          type="text"
-                          value={formData.pessoa_dados?.nome || ''}
-                          onChange={(e) => handlePessoaDataChange('nome', e.target.value)}
-                          className={`w-full px-3 py-2 border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring rounded-md ${
-                            errors['pessoa_dados.nome'] ? 'border-red-500' : 'border-input'
-                          }`}
-                          placeholder="Nome completo"
+                          type="radio"
+                          name="pessoa_type"
+                          checked={!formData.criar_pessoa}
+                          onChange={() => handleInputChange('criar_pessoa', false)}
                         />
-                        {errors['pessoa_dados.nome'] && (
-                          <p className="text-red-600 text-xs mt-1">{errors['pessoa_dados.nome']}</p>
-                        )}
-                      </div>
-
-                      <div>
-                        <label className="text-sm font-medium mb-2 block">
-                          CPF *
-                        </label>
+                        <span>Pessoa existente</span>
+                      </label>
+                      <label className="flex items-center space-x-2 text-sm">
                         <input
-                          type="text"
-                          value={formatCPF(formData.pessoa_dados?.cpf || '')}
-                          onChange={(e) => handlePessoaDataChange('cpf', e.target.value.replace(/\D/g, ''))}
-                          className={`w-full px-3 py-2 border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring rounded-md ${
-                            errors['pessoa_dados.cpf'] ? 'border-red-500' : 'border-input'
-                          }`}
-                          placeholder="000.000.000-00"
-                          maxLength={14}
+                          type="radio"
+                          name="pessoa_type"
+                          checked={formData.criar_pessoa}
+                          onChange={() => handleInputChange('criar_pessoa', true)}
                         />
-                        {errors['pessoa_dados.cpf'] && (
-                          <p className="text-red-600 text-xs mt-1">{errors['pessoa_dados.cpf']}</p>
-                        )}
-                      </div>
-
-                      <div>
-                        <label className="text-sm font-medium mb-2 block">
-                          Data de nascimento *
-                        </label>
-                        <input
-                          type="date"
-                          value={formData.pessoa_dados?.data_nascimento || ''}
-                          onChange={(e) => handlePessoaDataChange('data_nascimento', e.target.value)}
-                          className={`w-full px-3 py-2 border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring rounded-md ${
-                            errors['pessoa_dados.data_nascimento'] ? 'border-red-500' : 'border-input'
-                          }`}
-                        />
-                        {errors['pessoa_dados.data_nascimento'] && (
-                          <p className="text-red-600 text-xs mt-1">{errors['pessoa_dados.data_nascimento']}</p>
-                        )}
-                      </div>
-
-                      <div>
-                        <label className="text-sm font-medium mb-2 block">
-                          Sexo *
-                        </label>
-                        <select
-                          value={formData.pessoa_dados?.sexo || 'M'}
-                          onChange={(e) => handlePessoaDataChange('sexo', e.target.value)}
-                          className="w-full px-3 py-2 border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring rounded-md"
-                        >
-                          <option value="M">Masculino</option>
-                          <option value="F">Feminino</option>
-                          <option value="O">Outro</option>
-                        </select>
-                      </div>
-
-                      <div>
-                        <label className="text-sm font-medium mb-2 block">
-                          Email
-                        </label>
-                        <input
-                          type="email"
-                          value={formData.pessoa_dados?.email || ''}
-                          onChange={(e) => handlePessoaDataChange('email', e.target.value)}
-                          className={`w-full px-3 py-2 border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring rounded-md ${
-                            errors['pessoa_dados.email'] ? 'border-red-500' : 'border-input'
-                          }`}
-                          placeholder="email@exemplo.com"
-                        />
-                        {errors['pessoa_dados.email'] && (
-                          <p className="text-red-600 text-xs mt-1">{errors['pessoa_dados.email']}</p>
-                        )}
-                      </div>
-
-                      <div>
-                        <label className="text-sm font-medium mb-2 block">
-                          Telefone
-                        </label>
-                        <input
-                          type="tel"
-                          value={formData.pessoa_dados?.telefone || ''}
-                          onChange={(e) => handlePessoaDataChange('telefone', e.target.value)}
-                          className="w-full px-3 py-2 border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring rounded-md"
-                          placeholder="(11) 99999-9999"
-                        />
-                      </div>
+                        <span>Criar nova pessoa</span>
+                      </label>
                     </div>
-
-                    {/* Endereço */}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {!formData.criar_pessoa ? (
+                    // Busca de pessoa existente
                     <div className="space-y-4">
-                      <h4 className="font-medium">Endereço</h4>
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div className="relative">
+                        <div className="relative">
+                          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
+                          <input
+                            type="text"
+                            value={searchTermPessoa}
+                            onChange={(e) => {
+                              setSearchTermPessoa(e.target.value);
+                              setShowPessoaSearch(true);
+                            }}
+                            className="w-full pl-10 pr-4 py-2 border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring rounded-md"
+                            placeholder="Buscar por nome ou CPF..."
+                          />
+                        </div>
+                        
+                        {searchingPessoa && (
+                          <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          </div>
+                        )}
+                      </div>
+
+                      {showPessoaSearch && pessoasEncontradas.length > 0 && (
+                        <Card>
+                          <CardContent className="p-0">
+                            <div className="max-h-60 overflow-y-auto">
+                              {pessoasEncontradas.map((pessoa) => (
+                                <button
+                                  key={pessoa.id}
+                                  type="button"
+                                  onClick={() => selectPessoa(pessoa)}
+                                  className="w-full p-4 text-left hover:bg-accent border-b border-border last:border-0"
+                                >
+                                  <div className="flex items-center justify-between">
+                                    <div>
+                                      <p className="font-medium">{pessoa.nome}</p>
+                                      <p className="text-sm text-muted-foreground">
+                                        CPF: {formatCPF(pessoa.cpf)}
+                                      </p>
+                                    </div>
+                                    <div className="text-right text-sm text-muted-foreground">
+                                      {pessoa.email && <p>{pessoa.email}</p>}
+                                      {pessoa.telefone && <p>{pessoa.telefone}</p>}
+                                    </div>
+                                  </div>
+                                </button>
+                              ))}
+                            </div>
+                          </CardContent>
+                        </Card>
+                      )}
+
+                      {errors.pessoa_id && (
+                        <p className="text-red-600 text-xs">{errors.pessoa_id}</p>
+                      )}
+
+                      <div className="text-center py-4">
+                        <p className="text-sm text-muted-foreground mb-3">
+                          Não encontrou a pessoa? 
+                        </p>
+                        <Link href="/dashboard/people/new">
+                          <Button type="button" variant="outline" size="sm">
+                            <Plus className="h-4 w-4 mr-2" />
+                            Cadastrar Nova Pessoa
+                          </Button>
+                        </Link>
+                      </div>
+                    </div>
+                  ) : (
+                    // Formulário de nova pessoa (versão compacta)
+                    <div className="space-y-4">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="md:col-span-2">
-                          <label className="text-sm font-medium mb-2 block">Logradouro</label>
+                          <label className="text-sm font-medium mb-2 block">
+                            Nome completo *
+                          </label>
                           <input
                             type="text"
-                            value={formData.pessoa_dados?.endereco?.logradouro || ''}
-                            onChange={(e) => handleEnderecoChange('logradouro', e.target.value)}
-                            className="w-full px-3 py-2 border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring rounded-md"
-                            placeholder="Rua, Avenida, etc."
+                            value={formData.pessoa_dados?.nome || ''}
+                            onChange={(e) => handlePessoaDataChange('nome', e.target.value)}
+                            className={`w-full px-3 py-2 border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring rounded-md ${
+                              errors['pessoa_dados.nome'] ? 'border-red-500' : 'border-input'
+                            }`}
+                            placeholder="Nome completo"
                           />
+                          {errors['pessoa_dados.nome'] && (
+                            <p className="text-red-600 text-xs mt-1">{errors['pessoa_dados.nome']}</p>
+                          )}
                         </div>
 
                         <div>
-                          <label className="text-sm font-medium mb-2 block">Número</label>
+                          <label className="text-sm font-medium mb-2 block">
+                            CPF *
+                          </label>
                           <input
                             type="text"
-                            value={formData.pessoa_dados?.endereco?.numero || ''}
-                            onChange={(e) => handleEnderecoChange('numero', e.target.value)}
-                            className="w-full px-3 py-2 border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring rounded-md"
-                            placeholder="123"
+                            value={formatCPF(formData.pessoa_dados?.cpf || '')}
+                            onChange={(e) => handlePessoaDataChange('cpf', e.target.value.replace(/\D/g, ''))}
+                            className={`w-full px-3 py-2 border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring rounded-md ${
+                              errors['pessoa_dados.cpf'] ? 'border-red-500' : 'border-input'
+                            }`}
+                            placeholder="000.000.000-00"
+                            maxLength={14}
                           />
+                          {errors['pessoa_dados.cpf'] && (
+                            <p className="text-red-600 text-xs mt-1">{errors['pessoa_dados.cpf']}</p>
+                          )}
                         </div>
 
                         <div>
-                          <label className="text-sm font-medium mb-2 block">Complemento</label>
+                          <label className="text-sm font-medium mb-2 block">
+                            Data de nascimento *
+                          </label>
                           <input
-                            type="text"
-                            value={formData.pessoa_dados?.endereco?.complemento || ''}
-                            onChange={(e) => handleEnderecoChange('complemento', e.target.value)}
-                            className="w-full px-3 py-2 border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring rounded-md"
-                            placeholder="Apto, Bloco, etc."
+                            type="date"
+                            value={formData.pessoa_dados?.data_nascimento || ''}
+                            onChange={(e) => handlePessoaDataChange('data_nascimento', e.target.value)}
+                            className={`w-full px-3 py-2 border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring rounded-md ${
+                              errors['pessoa_dados.data_nascimento'] ? 'border-red-500' : 'border-input'
+                            }`}
                           />
+                          {errors['pessoa_dados.data_nascimento'] && (
+                            <p className="text-red-600 text-xs mt-1">{errors['pessoa_dados.data_nascimento']}</p>
+                          )}
                         </div>
 
                         <div>
-                          <label className="text-sm font-medium mb-2 block">Bairro</label>
-                          <input
-                            type="text"
-                            value={formData.pessoa_dados?.endereco?.bairro || ''}
-                            onChange={(e) => handleEnderecoChange('bairro', e.target.value)}
-                            className="w-full px-3 py-2 border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring rounded-md"
-                            placeholder="Centro"
-                          />
-                        </div>
-
-                        <div>
-                          <label className="text-sm font-medium mb-2 block">Cidade</label>
-                          <input
-                            type="text"
-                            value={formData.pessoa_dados?.endereco?.cidade || ''}
-                            onChange={(e) => handleEnderecoChange('cidade', e.target.value)}
-                            className="w-full px-3 py-2 border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring rounded-md"
-                            placeholder="São Paulo"
-                          />
-                        </div>
-
-                        <div>
-                          <label className="text-sm font-medium mb-2 block">Estado</label>
+                          <label className="text-sm font-medium mb-2 block">
+                            Sexo *
+                          </label>
                           <select
-                            value={formData.pessoa_dados?.endereco?.estado || ''}
-                            onChange={(e) => handleEnderecoChange('estado', e.target.value)}
+                            value={formData.pessoa_dados?.sexo || 'M'}
+                            onChange={(e) => handlePessoaDataChange('sexo', e.target.value)}
                             className="w-full px-3 py-2 border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring rounded-md"
                           >
-                            <option value="">Selecione</option>
-                            <option value="AC">Acre</option>
-                            <option value="AL">Alagoas</option>
-                            <option value="AP">Amapá</option>
-                            <option value="AM">Amazonas</option>
-                            <option value="BA">Bahia</option>
-                            <option value="CE">Ceará</option>
-                            <option value="DF">Distrito Federal</option>
-                            <option value="ES">Espírito Santo</option>
-                            <option value="GO">Goiás</option>
-                            <option value="MA">Maranhão</option>
-                            <option value="MT">Mato Grosso</option>
-                            <option value="MS">Mato Grosso do Sul</option>
-                            <option value="MG">Minas Gerais</option>
-                            <option value="PA">Pará</option>
-                            <option value="PB">Paraíba</option>
-                            <option value="PR">Paraná</option>
-                            <option value="PE">Pernambuco</option>
-                            <option value="PI">Piauí</option>
-                            <option value="RJ">Rio de Janeiro</option>
-                            <option value="RN">Rio Grande do Norte</option>
-                            <option value="RS">Rio Grande do Sul</option>
-                            <option value="RO">Rondônia</option>
-                            <option value="RR">Roraima</option>
-                            <option value="SC">Santa Catarina</option>
-                            <option value="SP">São Paulo</option>
-                            <option value="SE">Sergipe</option>
-                            <option value="TO">Tocantins</option>
+                            <option value="M">Masculino</option>
+                            <option value="F">Feminino</option>
+                            <option value="O">Outro</option>
                           </select>
                         </div>
 
                         <div>
-                          <label className="text-sm font-medium mb-2 block">CEP</label>
+                          <label className="text-sm font-medium mb-2 block">
+                            Email
+                          </label>
                           <input
-                            type="text"
-                            value={formData.pessoa_dados?.endereco?.cep || ''}
-                            onChange={(e) => handleEnderecoChange('cep', e.target.value.replace(/\D/g, '').replace(/(\d{5})(\d{3})/, '$1-$2'))}
+                            type="email"
+                            value={formData.pessoa_dados?.email || ''}
+                            onChange={(e) => handlePessoaDataChange('email', e.target.value)}
+                            className={`w-full px-3 py-2 border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring rounded-md ${
+                              errors['pessoa_dados.email'] ? 'border-red-500' : 'border-input'
+                            }`}
+                            placeholder="email@exemplo.com"
+                          />
+                          {errors['pessoa_dados.email'] && (
+                            <p className="text-red-600 text-xs mt-1">{errors['pessoa_dados.email']}</p>
+                          )}
+                        </div>
+
+                        <div>
+                          <label className="text-sm font-medium mb-2 block">
+                            Telefone
+                          </label>
+                          <input
+                            type="tel"
+                            value={formData.pessoa_dados?.telefone || ''}
+                            onChange={(e) => handlePessoaDataChange('telefone', e.target.value)}
                             className="w-full px-3 py-2 border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring rounded-md"
-                            placeholder="00000-000"
-                            maxLength={9}
+                            placeholder="(11) 99999-9999"
                           />
                         </div>
                       </div>
+
+                      <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-md">
+                        <p className="text-sm text-blue-700 dark:text-blue-300">
+                          <strong>Dica:</strong> Você pode completar as informações de endereço depois de criar o usuário.
+                        </p>
+                      </div>
                     </div>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+                  )}
+                </CardContent>
+              </Card>
+            )}
 
             {/* Permissões */}
             <Card>
@@ -893,7 +875,7 @@ export default function NewUserPage() {
               <CardContent>
                 <div className="space-y-4">
                   <p className="text-sm text-muted-foreground">
-                    Selecione as permissões que este usuário terá no sistema. As permissões são preenchidas automaticamente baseadas no papel selecionado.
+                    As permissões são preenchidas automaticamente baseadas no papel selecionado, mas você pode personalizar.
                   </p>
                   
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -1017,13 +999,13 @@ export default function NewUserPage() {
                 <div className="flex items-start space-x-2">
                   <AlertCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
                   <div>
-                    <p className="font-medium text-foreground">Dicas importantes:</p>
+                    <p className="font-medium text-foreground">Fluxo de criação:</p>
                     <ul className="mt-2 space-y-1 text-xs">
+                      <li>• {pessoaSelecionada ? 'Pessoa já selecionada' : 'Selecione ou crie uma pessoa'}</li>
+                      <li>• Configure dados de acesso (usuário/senha)</li>
+                      <li>• Defina papel e permissões</li>
+                      <li>• Usuário ficará ativo por padrão</li>
                       <li>• Senhas devem ter pelo menos 6 caracteres</li>
-                      <li>• Usuários inativos não conseguem fazer login</li>
-                      <li>• Permissões são preenchidas automaticamente pelo papel</li>
-                      <li>• Você pode vincular a uma pessoa existente ou criar nova</li>
-                      <li>• Dados pessoais seguem a LGPD</li>
                     </ul>
                   </div>
                 </div>
